@@ -1,5 +1,7 @@
 # Stoat Operator
 
+![Stoat Kubernetes operator](docs/assets/stoat-operator-hero.jpg)
+
 Kubernetes operator for [Stoat](https://stoat.chat) self-hosted instances, modeled on the upstream [stoatchat/self-hosted](https://github.com/stoatchat/self-hosted) Docker Compose stack.
 
 You declare a `Stoat` custom resource; the operator will eventually reconcile dependencies (MongoDB, Valkey, RabbitMQ, object storage), Stoat app services, HTTP ingress, and LiveKit voice exposure.
