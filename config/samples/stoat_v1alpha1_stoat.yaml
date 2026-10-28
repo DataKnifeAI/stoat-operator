@@ -1,0 +1,21 @@
+apiVersion: stoat.dataknife.ai/v1alpha1
+kind: Stoat
+metadata:
+  name: stoat
+  namespace: stoat
+spec:
+  domain: chat.example.com
+  version: v0.15.5
+  generateSecrets: true
+  dependencies:
+    embed: true
+  ingress:
+    className: envoy
+  livekit:
+    enabled: true
+    serviceType: LoadBalancer
+  storage:
+    size: 20Gi
+    # storageClassName: truenas-csi-nfs
+  nodeSelector:
+    kubernetes.io/os: linux

@@ -1,0 +1,30 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: go test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Verify generated code
+        run: |
+          go mod tidy
+          make generate manifests
+          git diff --exit-code
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: make test
