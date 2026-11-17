@@ -24,7 +24,9 @@ func (r *StoatReconciler) reconcileApps(ctx context.Context, instance *stoatv1al
 		{svcGifbox, "gifbox", images["gifbox"], portGifbox},
 		{svcCrond, "crond", images["crond"], 0},
 		{svcPushd, "pushd", images["pushd"], 0},
-		{svcVoiceIngress, "voice-ingress", images["voice-ingress"], portVoiceIngress},
+	}
+	if liveKitEnabled(instance.Spec) {
+		apps = append(apps, app{svcVoiceIngress, "voice-ingress", images["voice-ingress"], portVoiceIngress})
 	}
 
 	for _, a := range apps {

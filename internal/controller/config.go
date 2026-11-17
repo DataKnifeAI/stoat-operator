@@ -68,8 +68,9 @@ func (r *StoatReconciler) reconcileRevoltConfig(ctx context.Context, instance *s
 			}
 		}
 
+		lat, lon := liveKitCoords(instance.Spec)
 		cm.Data = map[string]string{
-			"Revolt.toml": renderRevoltTOML(domain, mongoHost, redisHost, rabbitHost, minioEndpoint, secrets),
+			"Revolt.toml": renderRevoltTOML(domain, mongoHost, redisHost, rabbitHost, minioEndpoint, secrets, liveKitEnabled(instance.Spec), lat, lon),
 			"stoat.json":  fmt.Sprintf(`{"api":"https://%s/api"}`, domain),
 		}
 		return nil
@@ -77,7 +78,7 @@ func (r *StoatReconciler) reconcileRevoltConfig(ctx context.Context, instance *s
 	return err
 }
 
-func renderRevoltTOML(domain, mongoURL, redisURL, rabbitHost, s3Endpoint string, secrets *stoatSecrets) string {
+func renderRevoltTOML(domain, mongoURL, redisURL, rabbitHost, s3Endpoint string, secrets *stoatSecrets, withLiveKit bool, lat, lon float64) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Managed by stoat-operator — do not edit by hand\n")
 	fmt.Fprintf(&b, "production = true\n\n")
@@ -91,8 +92,10 @@ func renderRevoltTOML(domain, mongoURL, redisURL, rabbitHost, s3Endpoint string,
 	fmt.Fprintf(&b, "autumn = \"https://%s/autumn\"\n", domain)
 	fmt.Fprintf(&b, "january = \"https://%s/january\"\n", domain)
 	fmt.Fprintf(&b, "gifbox = \"https://%s/gifbox\"\n\n", domain)
-	fmt.Fprintf(&b, "[hosts.livekit]\n")
-	fmt.Fprintf(&b, "worldwide = \"wss://%s/livekit\"\n\n", domain)
+	if withLiveKit {
+		fmt.Fprintf(&b, "[hosts.livekit]\n")
+		fmt.Fprintf(&b, "worldwide = \"wss://%s/livekit\"\n\n", domain)
+	}
 	fmt.Fprintf(&b, "[rabbit]\n")
 	fmt.Fprintf(&b, "host = %q\n", rabbitHost)
 	fmt.Fprintf(&b, "port = 5672\n")
@@ -102,12 +105,14 @@ func renderRevoltTOML(domain, mongoURL, redisURL, rabbitHost, s3Endpoint string,
 	fmt.Fprintf(&b, "[rabbit.queues]\n")
 	fmt.Fprintf(&b, "acks = \"internal.ack\"\n")
 	fmt.Fprintf(&b, "events = \"internal.event\"\n\n")
-	fmt.Fprintf(&b, "[api.livekit.nodes.worldwide]\n")
-	fmt.Fprintf(&b, "url = \"http://%s:%d\"\n", svcLiveKit, portLiveKitHTTP)
-	fmt.Fprintf(&b, "lat = 0.0\n")
-	fmt.Fprintf(&b, "lon = 0.0\n")
-	fmt.Fprintf(&b, "key = %q\n", secrets.LiveKitKey)
-	fmt.Fprintf(&b, "secret = %q\n\n", secrets.LiveKitSec)
+	if withLiveKit {
+		fmt.Fprintf(&b, "[api.livekit.nodes.worldwide]\n")
+		fmt.Fprintf(&b, "url = \"http://%s:%d\"\n", svcLiveKit, portLiveKitHTTP)
+		fmt.Fprintf(&b, "lat = %g\n", lat)
+		fmt.Fprintf(&b, "lon = %g\n", lon)
+		fmt.Fprintf(&b, "key = %q\n", secrets.LiveKitKey)
+		fmt.Fprintf(&b, "secret = %q\n\n", secrets.LiveKitSec)
+	}
 	fmt.Fprintf(&b, "[pushd.vapid]\n")
 	fmt.Fprintf(&b, "private_key = %q\n", secrets.VapidPrivate)
 	fmt.Fprintf(&b, "public_key = %q\n\n", secrets.VapidPublic)
@@ -124,6 +129,9 @@ func renderRevoltTOML(domain, mongoURL, redisURL, rabbitHost, s3Endpoint string,
 }
 
 func (r *StoatReconciler) reconcileLiveKitConfig(ctx context.Context, instance *stoatv1alpha1.Stoat, secrets *stoatSecrets) error {
+	if !liveKitEnabled(instance.Spec) {
+		return nil
+	}
 	rtc, udpStart, udpEnd := liveKitPorts(instance.Spec)
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -137,30 +145,34 @@ func (r *StoatReconciler) reconcileLiveKitConfig(ctx context.Context, instance *
 		}
 		cm.Labels = stoatLabels(instance.Name)
 		cm.Data = map[string]string{
-			"livekit.yml": fmt.Sprintf(`rtc:
-  use_external_ip: true
-  port_range_start: %d
-  port_range_end: %d
-  tcp_port: %d
-
-redis:
-  address: %s:%d
-
-turn:
-  enabled: false
-
-keys:
-  %s: %s
-
-webhook:
-  api_key: %s
-  urls:
-    - "http://%s:%d/worldwide"
-`, udpStart, udpEnd, rtc, svcRedis, portRedis, secrets.LiveKitKey, secrets.LiveKitSec, secrets.LiveKitKey, svcVoiceIngress, portVoiceIngress),
+			"livekit.yml": renderLiveKitYAML(instance.Spec, secrets, rtc, udpStart, udpEnd),
 		}
 		return nil
 	})
 	return err
+}
+
+func renderLiveKitYAML(spec stoatv1alpha1.StoatSpec, secrets *stoatSecrets, rtc, udpStart, udpEnd int32) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "rtc:\n")
+	fmt.Fprintf(&b, "  use_external_ip: %t\n", liveKitUseExternalIP(spec))
+	if addr := strings.TrimSpace(spec.LiveKit.Address); addr != "" && !liveKitUseExternalIP(spec) {
+		fmt.Fprintf(&b, "  node_ip: %q\n", addr)
+	}
+	fmt.Fprintf(&b, "  port_range_start: %d\n", udpStart)
+	fmt.Fprintf(&b, "  port_range_end: %d\n", udpEnd)
+	fmt.Fprintf(&b, "  tcp_port: %d\n\n", rtc)
+	fmt.Fprintf(&b, "redis:\n")
+	fmt.Fprintf(&b, "  address: %s:%d\n\n", svcRedis, portRedis)
+	fmt.Fprintf(&b, "turn:\n")
+	fmt.Fprintf(&b, "  enabled: false\n\n")
+	fmt.Fprintf(&b, "keys:\n")
+	fmt.Fprintf(&b, "  %s: %s\n\n", secrets.LiveKitKey, secrets.LiveKitSec)
+	fmt.Fprintf(&b, "webhook:\n")
+	fmt.Fprintf(&b, "  api_key: %s\n", secrets.LiveKitKey)
+	fmt.Fprintf(&b, "  urls:\n")
+	fmt.Fprintf(&b, "    - \"http://%s:%d/worldwide\"\n", svcVoiceIngress, portVoiceIngress)
+	return b.String()
 }
 
 func (r *StoatReconciler) reconcileCaddyConfig(ctx context.Context, instance *stoatv1alpha1.Stoat) error {
@@ -177,7 +189,16 @@ func (r *StoatReconciler) reconcileCaddyConfig(ctx context.Context, instance *st
 		cm.Labels = stoatLabels(instance.Name)
 		// Behind Ingress: Caddy listens on :80 and serves all routes.
 		cm.Data = map[string]string{
-			"Caddyfile": fmt.Sprintf(`:80 {
+			"Caddyfile": renderCaddyfile(liveKitEnabled(instance.Spec)),
+		}
+		return nil
+	})
+	return err
+}
+
+func renderCaddyfile(withLiveKit bool) string {
+	var b strings.Builder
+	b.WriteString(`:80 {
 	route /.well-known/stoat {
 		uri strip_prefix /.well-known/stoat
 		header {
@@ -199,49 +220,21 @@ func (r *StoatReconciler) reconcileCaddyConfig(ctx context.Context, instance *st
 		}
 	}
 
-	route /api* {
-		uri strip_prefix /api
-		reverse_proxy http://%s:%d
+`)
+	fmt.Fprintf(&b, "\troute /api* {\n\t\turi strip_prefix /api\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcAPI, portAPI)
+	fmt.Fprintf(&b, "\troute /ws {\n\t\turi strip_prefix /ws\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcEvents, portEvents)
+	fmt.Fprintf(&b, "\troute /autumn* {\n\t\turi strip_prefix /autumn\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcAutumn, portAutumn)
+	fmt.Fprintf(&b, "\troute /january* {\n\t\turi strip_prefix /january\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcJanuary, portJanuary)
+	fmt.Fprintf(&b, "\troute /gifbox* {\n\t\turi strip_prefix /gifbox\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcGifbox, portGifbox)
+	if withLiveKit {
+		fmt.Fprintf(&b, "\troute /livekit* {\n\t\turi strip_prefix /livekit\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcLiveKit, portLiveKitHTTP)
+		fmt.Fprintf(&b, "\troute /ingress* {\n\t\turi strip_prefix /ingress\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcVoiceIngress, portVoiceIngress)
 	}
-
-	route /ws {
-		uri strip_prefix /ws
-		reverse_proxy http://%s:%d
-	}
-
-	route /autumn* {
-		uri strip_prefix /autumn
-		reverse_proxy http://%s:%d
-	}
-
-	route /january* {
-		uri strip_prefix /january
-		reverse_proxy http://%s:%d
-	}
-
-	route /gifbox* {
-		uri strip_prefix /gifbox
-		reverse_proxy http://%s:%d
-	}
-
-	route /livekit* {
-		uri strip_prefix /livekit
-		reverse_proxy http://%s:%d
-	}
-
-	route /ingress* {
-		uri strip_prefix /ingress
-		reverse_proxy http://%s:%d
-	}
-
-	reverse_proxy http://%s:%d
-}
-`, svcAPI, portAPI, svcEvents, portEvents, svcAutumn, portAutumn, svcJanuary, portJanuary,
-				svcGifbox, portGifbox, svcLiveKit, portLiveKitHTTP, svcVoiceIngress, portVoiceIngress, svcWeb, portWeb),
-		}
-		return nil
-	})
-	return err
+	// Fingerprinted assets can be cached long; HTML must revalidate so clients
+	// don't keep stale chunk refs (crashes like features.invite_only undefined).
+	fmt.Fprintf(&b, "\thandle /assets* {\n\t\treverse_proxy http://%s:%d {\n\t\t\theader_down Cache-Control \"public, max-age=31536000, immutable\"\n\t\t}\n\t}\n\n", svcWeb, portWeb)
+	fmt.Fprintf(&b, "\thandle {\n\t\treverse_proxy http://%s:%d {\n\t\t\theader_down Cache-Control \"no-cache\"\n\t\t}\n\t}\n}\n", svcWeb, portWeb)
+	return b.String()
 }
 
 func (r *StoatReconciler) reconcileWebEnv(ctx context.Context, instance *stoatv1alpha1.Stoat) error {

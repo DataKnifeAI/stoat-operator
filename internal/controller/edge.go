@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	stoatv1alpha1 "github.com/DataKnifeAI/stoat-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -122,19 +124,21 @@ func (r *StoatReconciler) reconcileIngress(ctx context.Context, instance *stoatv
 }
 
 func (r *StoatReconciler) reconcileLiveKit(ctx context.Context, instance *stoatv1alpha1.Stoat, image string) error {
-	rtc, _, _ := liveKitPorts(instance.Spec)
+	rtc, udpStart, udpEnd := liveKitPorts(instance.Spec)
 	labels := componentLabels(instance.Name, "livekit")
 	replicas := int32(1)
 
 	// ClusterIP for in-cluster HTTP signaling (Caddy /livekit*).
-	// RTC UDP/TCP use hostNetwork so the media port range binds on the node
-	// (LoadBalancer with 100+ UDP ports is impractical).
 	if err := r.reconcileService(ctx, instance, svcLiveKit, "livekit",
 		[]corev1.ServicePort{
 			servicePort("http", portLiveKitHTTP),
 			servicePort("rtc", rtc),
 		}, corev1.ServiceTypeClusterIP); err != nil {
 		return ensureErr("livekit service", err)
+	}
+
+	if err := r.reconcileLiveKitRTCService(ctx, instance, rtc, udpStart, udpEnd); err != nil {
+		return err
 	}
 
 	deploy := &appsv1.Deployment{
@@ -154,6 +158,8 @@ func (r *StoatReconciler) reconcileLiveKit(ctx context.Context, instance *stoatv
 		deploy.Spec.Template.ObjectMeta.Labels = labels
 		deploy.Spec.Template.Spec.HostNetwork = true
 		deploy.Spec.Template.Spec.DNSPolicy = corev1.DNSClusterFirstWithHostNet
+		// Service links inject LIVEKIT_PORT=tcp://... which LiveKit misparses as its listen port.
+		deploy.Spec.Template.Spec.EnableServiceLinks = boolPtr(false)
 		deploy.Spec.Template.Spec.ImagePullSecrets = instance.Spec.ImagePullSecrets
 		deploy.Spec.Template.Spec.NodeSelector = instance.Spec.NodeSelector
 		deploy.Spec.Template.Spec.Containers = []corev1.Container{{
@@ -161,6 +167,7 @@ func (r *StoatReconciler) reconcileLiveKit(ctx context.Context, instance *stoatv
 			Image:           image,
 			ImagePullPolicy: pullPolicy(instance.Spec),
 			Args:            []string{"--config", "/etc/livekit.yml"},
+			Env:            []corev1.EnvVar{liveKitNodeIPEnv(instance.Spec)},
 			Ports: []corev1.ContainerPort{
 				containerPort("http", portLiveKitHTTP),
 				containerPort("rtc", rtc),
@@ -184,4 +191,56 @@ func (r *StoatReconciler) reconcileLiveKit(ctx context.Context, instance *stoatv
 		return nil
 	})
 	return ensureErr("livekit deployment", err)
+}
+
+func liveKitNodeIPEnv(spec stoatv1alpha1.StoatSpec) corev1.EnvVar {
+	if addr := strings.TrimSpace(spec.LiveKit.Address); addr != "" {
+		return corev1.EnvVar{Name: "NODE_IP", Value: addr}
+	}
+	return corev1.EnvVar{
+		Name: "NODE_IP",
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{FieldPath: "status.hostIP"},
+		},
+	}
+}
+
+func (r *StoatReconciler) reconcileLiveKitRTCService(ctx context.Context, instance *stoatv1alpha1.Stoat, rtc, udpStart, udpEnd int32) error {
+	svcType := instance.Spec.LiveKit.ServiceType
+	if svcType == "" {
+		svcType = corev1.ServiceTypeClusterIP
+	}
+	addr := strings.TrimSpace(instance.Spec.LiveKit.Address)
+
+	// Only claim a VIP Service when explicitly asking for LoadBalancer + address.
+	if svcType != corev1.ServiceTypeLoadBalancer || addr == "" {
+		return nil
+	}
+
+	ports := []corev1.ServicePort{servicePort("rtc-tcp", rtc)}
+	for p := udpStart; p <= udpEnd; p++ {
+		ports = append(ports, servicePortUDP(
+			"rtc-udp-"+strconv.FormatInt(int64(p), 10), p,
+		))
+	}
+
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      svcLiveKitRTC,
+			Namespace: instance.Namespace,
+		},
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
+		if err := controllerutil.SetControllerReference(instance, svc, r.Scheme); err != nil {
+			return err
+		}
+		svc.Labels = componentLabels(instance.Name, "livekit-rtc")
+		svc.Spec.Selector = componentLabels(instance.Name, "livekit")
+		svc.Spec.Type = corev1.ServiceTypeLoadBalancer
+		svc.Spec.LoadBalancerIP = addr
+		svc.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeLocal
+		svc.Spec.Ports = ports
+		return nil
+	})
+	return ensureErr("livekit-rtc service", err)
 }

@@ -117,6 +117,20 @@ func liveKitEnabled(spec stoatv1alpha1.StoatSpec) bool {
 	return boolDefault(spec.LiveKit.Enabled, true)
 }
 
+func liveKitUseExternalIP(spec stoatv1alpha1.StoatSpec) bool {
+	return boolDefault(spec.LiveKit.UseExternalIP, false)
+}
+
+func liveKitCoords(spec stoatv1alpha1.StoatSpec) (lat, lon float64) {
+	if spec.LiveKit.Latitude != nil {
+		lat = *spec.LiveKit.Latitude
+	}
+	if spec.LiveKit.Longitude != nil {
+		lon = *spec.LiveKit.Longitude
+	}
+	return lat, lon
+}
+
 func liveKitPorts(spec stoatv1alpha1.StoatSpec) (rtc, udpStart, udpEnd int32) {
 	rtc = defaultLiveKitRTCPort
 	udpStart = defaultUDPPortStart

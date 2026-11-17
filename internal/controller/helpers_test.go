@@ -69,18 +69,66 @@ func TestRenderRevoltTOML(t *testing.T) {
 		LiveKitKey:   "lk",
 		LiveKitSec:   "lks",
 	}
-	out := renderRevoltTOML("chat.example.com", "mongodb://database", "redis://redis/", "rabbit", "http://minio:9000", s)
+	out := renderRevoltTOML("chat.example.com", "mongodb://database", "redis://redis/", "rabbit", "http://minio:9000", s, true, 47.6, -122.3)
 	for _, want := range []string{
 		`app = "https://chat.example.com"`,
 		`mongodb = "mongodb://database"`,
 		`host = "rabbit"`,
 		`encryption_key = "enc"`,
 		`endpoint = "http://minio:9000"`,
-		`lat = 0.0`,
-		`lon = 0.0`,
+		`lat = 47.6`,
+		`lon = -122.3`,
+		`[hosts.livekit]`,
+		`[api.livekit.nodes.worldwide]`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in:\n%s", want, out)
 		}
+	}
+
+	off := renderRevoltTOML("chat.example.com", "mongodb://database", "redis://redis/", "rabbit", "http://minio:9000", s, false, 0, 0)
+	for _, ban := range []string{`[hosts.livekit]`, `[api.livekit.nodes.worldwide]`} {
+		if strings.Contains(off, ban) {
+			t.Fatalf("livekit disabled but found %q in:\n%s", ban, off)
+		}
+	}
+}
+
+func TestRenderCaddyfile(t *testing.T) {
+	on := renderCaddyfile(true)
+	if !strings.Contains(on, "/livekit*") || !strings.Contains(on, "/ingress*") {
+		t.Fatalf("expected livekit routes:\n%s", on)
+	}
+	off := renderCaddyfile(false)
+	if strings.Contains(off, "/livekit*") || strings.Contains(off, "/ingress*") {
+		t.Fatalf("livekit disabled but routes present:\n%s", off)
+	}
+}
+
+func TestIngressClassDefault(t *testing.T) {
+	if got := ingressClass(stoatv1alpha1.StoatSpec{}); got != "nginx" {
+		t.Fatalf("expected nginx default, got %q", got)
+	}
+}
+
+func TestRenderLiveKitYAMLAddress(t *testing.T) {
+	s := &stoatSecrets{LiveKitKey: "lk", LiveKitSec: "lks"}
+	spec := stoatv1alpha1.StoatSpec{
+		LiveKit: stoatv1alpha1.LiveKitSpec{Address: "192.168.14.189"},
+	}
+	out := renderLiveKitYAML(spec, s, 7881, 50000, 50100)
+	if !strings.Contains(out, `use_external_ip: false`) || !strings.Contains(out, `node_ip: "192.168.14.189"`) {
+		t.Fatalf("expected VIP node_ip:\n%s", out)
+	}
+}
+
+func TestLiveKitNodeIPEnv(t *testing.T) {
+	vip := liveKitNodeIPEnv(stoatv1alpha1.StoatSpec{LiveKit: stoatv1alpha1.LiveKitSpec{Address: "192.168.14.189"}})
+	if vip.Value != "192.168.14.189" {
+		t.Fatalf("expected static VIP, got %#v", vip)
+	}
+	host := liveKitNodeIPEnv(stoatv1alpha1.StoatSpec{})
+	if host.ValueFrom == nil || host.ValueFrom.FieldRef.FieldPath != "status.hostIP" {
+		t.Fatalf("expected hostIP fieldRef, got %#v", host)
 	}
 }

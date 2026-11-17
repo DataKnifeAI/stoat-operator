@@ -284,7 +284,7 @@ spec:
                     description: Annotations applied to the Ingress / HTTPRoute resources.
                     type: object
                   className:
-                    default: envoy
+                    default: nginx
                     description: ClassName is the IngressClass or GatewayClass name.
                     type: string
                   tlsSecretName:
@@ -295,10 +295,26 @@ spec:
               livekit:
                 description: LiveKit configures voice/RTC networking.
                 properties:
+                  address:
+                    description: |-
+                      Address is an optional stable LAN/VPN IP advertised to clients for RTC ICE
+                      (typically a kube-vip / MetalLB VIP). When empty, LiveKit advertises the
+                      scheduled node's LAN address (status.hostIP). Not a cluster-internal IP.
+                    type: string
                   enabled:
                     default: true
-                    description: Enabled toggles LiveKit / voice-ingress workloads.
+                    description: |-
+                      Enabled toggles LiveKit / voice-ingress workloads and advertises voice
+                      endpoints in Revolt.toml / Caddy. When false, voice config and routes are omitted.
                     type: boolean
+                  latitude:
+                    description: Latitude of this LiveKit node (used by Stoat for
+                      nearest-node selection).
+                    type: number
+                  longitude:
+                    description: Longitude of this LiveKit node (used by Stoat for
+                      nearest-node selection).
+                    type: number
                   rtcPort:
                     default: 7881
                     description: RTCPort is the LiveKit TCP RTC port (hostNetwork).
@@ -309,8 +325,9 @@ spec:
                   serviceType:
                     default: ClusterIP
                     description: |-
-                      ServiceType is reserved for future external RTC exposure modes.
-                      The current controller always uses ClusterIP for signaling plus hostNetwork for media.
+                      ServiceType for the optional RTC exposure Service (livekit-rtc).
+                      Signaling stays ClusterIP for Caddy. Use LoadBalancer with address set
+                      to claim a kube-vip VIP for TCP 7881 + the UDP media range.
                     enum:
                     - ClusterIP
                     - NodePort
@@ -332,6 +349,14 @@ spec:
                     maximum: 65535
                     minimum: 1024
                     type: integer
+                  useExternalIP:
+                    default: false
+                    description: |-
+                      UseExternalIP discovers a public WAN IP via STUN for RTC candidates.
+                      Leave false (default) for site-local access: clients on the LAN/VPN reach
+                      LiveKit on the node (or VIP) address. This is not ClusterIP-only — media
+                      still uses hostNetwork on the local network, not the pod network.
+                    type: boolean
                 type: object
               nodeSelector:
                 additionalProperties:

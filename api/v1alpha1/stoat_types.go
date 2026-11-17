@@ -96,7 +96,7 @@ type DependenciesSpec struct {
 // IngressSpec configures HTTP(S) exposure for the web UI and API.
 type IngressSpec struct {
 	// ClassName is the IngressClass or GatewayClass name.
-	// +kubebuilder:default="envoy"
+	// +kubebuilder:default="nginx"
 	// +optional
 	ClassName string `json:"className,omitempty"`
 
@@ -114,10 +114,33 @@ type IngressSpec struct {
 // node. Signaling HTTP (7880) is also available via the in-cluster Service for
 // Caddy's /livekit* route.
 type LiveKitSpec struct {
-	// Enabled toggles LiveKit / voice-ingress workloads.
+	// Enabled toggles LiveKit / voice-ingress workloads and advertises voice
+	// endpoints in Revolt.toml / Caddy. When false, voice config and routes are omitted.
 	// +kubebuilder:default=true
 	// +optional
 	Enabled *bool `json:"enabled,omitempty"`
+
+	// UseExternalIP discovers a public WAN IP via STUN for RTC candidates.
+	// Leave false (default) for site-local access: clients on the LAN/VPN reach
+	// LiveKit on the node (or VIP) address. This is not ClusterIP-only — media
+	// still uses hostNetwork on the local network, not the pod network.
+	// +kubebuilder:default=false
+	// +optional
+	UseExternalIP *bool `json:"useExternalIP,omitempty"`
+
+	// Address is an optional stable LAN/VPN IP advertised to clients for RTC ICE
+	// (typically a kube-vip / MetalLB VIP). When empty, LiveKit advertises the
+	// scheduled node's LAN address (status.hostIP). Not a cluster-internal IP.
+	// +optional
+	Address string `json:"address,omitempty"`
+
+	// Latitude of this LiveKit node (used by Stoat for nearest-node selection).
+	// +optional
+	Latitude *float64 `json:"latitude,omitempty"`
+
+	// Longitude of this LiveKit node (used by Stoat for nearest-node selection).
+	// +optional
+	Longitude *float64 `json:"longitude,omitempty"`
 
 	// RTCPort is the LiveKit TCP RTC port (hostNetwork).
 	// +kubebuilder:default=7881
@@ -140,8 +163,9 @@ type LiveKitSpec struct {
 	// +optional
 	UDPPortEnd int32 `json:"udpPortEnd,omitempty"`
 
-	// ServiceType is reserved for future external RTC exposure modes.
-	// The current controller always uses ClusterIP for signaling plus hostNetwork for media.
+	// ServiceType for the optional RTC exposure Service (livekit-rtc).
+	// Signaling stays ClusterIP for Caddy. Use LoadBalancer with address set
+	// to claim a kube-vip VIP for TCP 7881 + the UDP media range.
 	// +kubebuilder:validation:Enum=ClusterIP;NodePort;LoadBalancer
 	// +kubebuilder:default=ClusterIP
 	// +optional

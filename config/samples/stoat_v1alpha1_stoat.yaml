@@ -14,6 +14,18 @@ spec:
     # tlsSecretName: chat-example-tls
   livekit:
     enabled: true
+    # false (default): site-local LAN/VPN ICE (no public WAN STUN).
+    # Media is hostNetwork on the node LAN — reachable from the local network,
+    # not limited to the Kubernetes pod/ClusterIP network.
+    useExternalIP: false
+    # Optional stable LAN/VPN VIP (kube-vip). Advertised as NODE_IP; pair with
+    # LoadBalancer to claim the VIP for TCP 7881 + UDP media range.
+    # Omit to advertise the scheduled node's LAN IP.
+    # address: "192.168.14.189"
+    # serviceType: LoadBalancer
+    # Optional node coords for Stoat nearest-node selection.
+    # latitude: 47.6062
+    # longitude: -122.3321
     # RTC uses hostNetwork on the LiveKit pod (UDP media range on the node).
   storage:
     size: 20Gi

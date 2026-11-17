@@ -7,7 +7,7 @@ const (
 	// compose pins for-web:f080e84 (arm64-only today). :main publishes amd64.
 	defaultWebImageTag = "main"
 	defaultWebImage    = "ghcr.io/stoatchat/for-web"
-	defaultIngressClass   = "envoy"
+	defaultIngressClass   = "nginx"
 	defaultStorageSize    = "20Gi"
 	defaultLiveKitRTCPort = int32(7881)
 	defaultUDPPortStart   = int32(50000)
@@ -46,6 +46,7 @@ const (
 	svcPushd        = "pushd"
 	svcVoiceIngress = "voice-ingress"
 	svcLiveKit      = "livekit"
+	svcLiveKitRTC   = "livekit-rtc"
 	svcWeb          = "web"
 	svcCaddy        = "caddy"
 

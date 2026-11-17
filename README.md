@@ -44,7 +44,11 @@ kubectl get deploy,svc,ingress -n stoat
 
 Point DNS for `spec.domain` at your Ingress. Set `spec.ingress.tlsSecretName` (or Ingress annotations) for HTTPS.
 
-Open firewall / security-group access for LiveKit on the scheduled node: `7881/tcp` and `50000-50100/udp`.
+Site-local (LAN/VPN) is the default (`livekit.useExternalIP: false`). That means
+clients on your local network — not the Kubernetes pod network — reach LiveKit
+via hostNetwork on the node LAN IP (or a kube-vip). Set `livekit.address` plus
+`livekit.serviceType: LoadBalancer` for a stable VIP covering `7881/tcp` and the
+UDP media range. Signaling still goes through Ingress/Caddy on your domain.
 
 ## Secrets
 
