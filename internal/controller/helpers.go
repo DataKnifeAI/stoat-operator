@@ -96,6 +96,10 @@ func secretNameFor(instance *stoatv1alpha1.Stoat) string {
 	return secretName
 }
 
+func int64Ptr(v int64) *int64 { return &v }
+
+func boolPtr(v bool) *bool { return &v }
+
 func tcpProbe(port int32) *corev1.Probe {
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{

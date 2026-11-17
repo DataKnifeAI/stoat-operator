@@ -36,7 +36,7 @@ func TestResolveImages(t *testing.T) {
 	if images["events"] != "ghcr.io/stoatchat/events:v0.16.2" {
 		t.Fatalf("events image unexpected: %q", images["events"])
 	}
-	if images["web"] != "ghcr.io/stoatchat/for-web:f080e84" {
+	if images["web"] != "ghcr.io/revoltchat/client:latest" {
 		t.Fatalf("web image unexpected: %q", images["web"])
 	}
 }
@@ -76,6 +76,8 @@ func TestRenderRevoltTOML(t *testing.T) {
 		`host = "rabbit"`,
 		`encryption_key = "enc"`,
 		`endpoint = "http://minio:9000"`,
+		`lat = 0.0`,
+		`lon = 0.0`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in:\n%s", want, out)

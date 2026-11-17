@@ -59,6 +59,13 @@ func (r *StoatReconciler) reconcileMongo(ctx context.Context, instance *stoatv1a
 		Readiness: tcpProbe(portMongo),
 		Liveness:  tcpProbe(portMongo),
 		Resources: defaultCPUMem("100m", "512Mi"),
+		PodSecurityContext: &corev1.PodSecurityContext{
+			FSGroup: int64Ptr(999),
+		},
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser:    int64Ptr(999),
+			RunAsNonRoot: boolPtr(true),
+		},
 	}))
 }
 
@@ -100,6 +107,13 @@ func (r *StoatReconciler) reconcileRabbit(ctx context.Context, instance *stoatv1
 		Readiness:    tcpProbe(portRabbit),
 		Liveness:     tcpProbe(portRabbit),
 		Resources:    defaultCPUMem("100m", "256Mi"),
+		PodSecurityContext: &corev1.PodSecurityContext{
+			FSGroup: int64Ptr(999),
+		},
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser:    int64Ptr(999),
+			RunAsNonRoot: boolPtr(true),
+		},
 	}))
 }
 
@@ -115,8 +129,9 @@ func (r *StoatReconciler) reconcileMinio(ctx context.Context, instance *stoatv1a
 		Name:      svcMinio,
 		Component: "minio",
 		Image:     minioImage,
-		Command:   []string{"server", "/data"},
-		Ports:     []corev1.ContainerPort{containerPort("s3", portMinio)},
+		// Keep image ENTRYPOINT; pass args like compose `command: server /data`.
+		Args:  []string{"server", "/data"},
+		Ports: []corev1.ContainerPort{containerPort("s3", portMinio)},
 		Env: []corev1.EnvVar{
 			{Name: "MINIO_ROOT_USER", Value: minioUser},
 			{Name: "MINIO_ROOT_PASSWORD", Value: minioPass},

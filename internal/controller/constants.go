@@ -4,7 +4,10 @@ const (
 	finalizerName = "stoat.dataknife.ai/finalizer"
 
 	defaultVersion        = "v0.16.2"
-	defaultWebImageTag    = "f080e84"
+	// Upstream for-web:f080e84 is currently published arm64-only; use the legacy
+	// amd64 Revolt web client as the default until stoatchat publishes amd64 builds.
+	defaultWebImageTag = "latest"
+	defaultWebImage    = "ghcr.io/revoltchat/client"
 	defaultIngressClass   = "envoy"
 	defaultStorageSize    = "20Gi"
 	defaultLiveKitRTCPort = int32(7881)
@@ -20,7 +23,6 @@ const (
 	defaultCrondImage        = "ghcr.io/stoatchat/crond"
 	defaultPushdImage        = "ghcr.io/stoatchat/pushd"
 	defaultVoiceIngressImage = "ghcr.io/stoatchat/voice-ingress"
-	defaultWebImage          = "ghcr.io/stoatchat/for-web"
 	defaultLiveKitImage      = "ghcr.io/stoatchat/livekit-server"
 
 	mongoImage   = "docker.io/mongo:8"

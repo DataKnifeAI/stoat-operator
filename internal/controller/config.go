@@ -104,6 +104,8 @@ func renderRevoltTOML(domain, mongoURL, redisURL, rabbitHost, s3Endpoint string,
 	fmt.Fprintf(&b, "events = \"internal.event\"\n\n")
 	fmt.Fprintf(&b, "[api.livekit.nodes.worldwide]\n")
 	fmt.Fprintf(&b, "url = \"http://%s:%d\"\n", svcLiveKit, portLiveKitHTTP)
+	fmt.Fprintf(&b, "lat = 0.0\n")
+	fmt.Fprintf(&b, "lon = 0.0\n")
 	fmt.Fprintf(&b, "key = %q\n", secrets.LiveKitKey)
 	fmt.Fprintf(&b, "secret = %q\n\n", secrets.LiveKitSec)
 	fmt.Fprintf(&b, "[pushd.vapid]\n")
@@ -152,7 +154,9 @@ keys:
 
 webhook:
   api_key: %s
-`, udpStart, udpEnd, rtc, svcRedis, portRedis, secrets.LiveKitKey, secrets.LiveKitSec, secrets.LiveKitKey),
+  urls:
+    - "http://%s:%d/worldwide"
+`, udpStart, udpEnd, rtc, svcRedis, portRedis, secrets.LiveKitKey, secrets.LiveKitSec, secrets.LiveKitKey, svcVoiceIngress, portVoiceIngress),
 		}
 		return nil
 	})
@@ -244,10 +248,12 @@ func (r *StoatReconciler) reconcileWebEnv(ctx context.Context, instance *stoatv1
 		}
 		cm.Labels = stoatLabels(instance.Name)
 		cm.Data = map[string]string{
-			"HOSTNAME":           ":80",
-			"VITE_HOST":          domain,
-			"VITE_API_URL":       fmt.Sprintf("https://%s/api", domain),
+			"HOSTNAME":            ":80",
+			"VITE_HOST":           domain,
+			"VITE_API_URL":        fmt.Sprintf("https://%s/api", domain),
 			"VITE_DEV_GIFBOX_URL": fmt.Sprintf("https://%s/gifbox", domain),
+			// Legacy revoltchat/client (amd64 fallback when for-web is arm-only).
+			"REVOLT_PUBLIC_URL": fmt.Sprintf("https://%s", domain),
 		}
 		return nil
 	})

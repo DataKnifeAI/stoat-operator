@@ -14,21 +14,22 @@ import (
 )
 
 type deploySpec struct {
-	Name            string
-	Component       string
-	Image           string
-	Replicas        int32
-	Command         []string
-	Args            []string
-	Ports           []corev1.ContainerPort
-	Env             []corev1.EnvVar
-	EnvFrom         []corev1.EnvFromSource
-	VolumeMounts    []corev1.VolumeMount
-	Volumes         []corev1.Volume
-	Readiness       *corev1.Probe
-	Liveness        *corev1.Probe
-	Resources       corev1.ResourceRequirements
-	SecurityContext *corev1.SecurityContext
+	Name               string
+	Component          string
+	Image              string
+	Replicas           int32
+	Command            []string
+	Args               []string
+	Ports              []corev1.ContainerPort
+	Env                []corev1.EnvVar
+	EnvFrom            []corev1.EnvFromSource
+	VolumeMounts       []corev1.VolumeMount
+	Volumes            []corev1.Volume
+	Readiness          *corev1.Probe
+	Liveness           *corev1.Probe
+	Resources          corev1.ResourceRequirements
+	SecurityContext    *corev1.SecurityContext
+	PodSecurityContext *corev1.PodSecurityContext
 }
 
 func (r *StoatReconciler) reconcilePVC(ctx context.Context, instance *stoatv1alpha1.Stoat, name, component string) error {
@@ -128,6 +129,7 @@ func (r *StoatReconciler) reconcileDeployment(ctx context.Context, instance *sto
 		deploy.Spec.Template.Spec.Volumes = spec.Volumes
 		deploy.Spec.Template.Spec.ImagePullSecrets = instance.Spec.ImagePullSecrets
 		deploy.Spec.Template.Spec.NodeSelector = instance.Spec.NodeSelector
+		deploy.Spec.Template.Spec.SecurityContext = spec.PodSecurityContext
 		return nil
 	})
 	return err
