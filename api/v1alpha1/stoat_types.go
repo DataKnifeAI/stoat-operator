@@ -67,9 +67,9 @@ type ExternalDependencyRef struct {
 }
 
 // DependenciesSpec configures data-plane dependencies.
-// When embed is true (default), the operator will eventually provision bundled
-// MongoDB, Valkey, RabbitMQ, and object storage. External refs override embed
-// for that dependency.
+// When embed is true (default), the operator provisions bundled MongoDB,
+// Valkey, RabbitMQ, and object storage. External refs override embed for that
+// dependency.
 type DependenciesSpec struct {
 	// Embed provisions in-cluster dependency workloads when true.
 	// +kubebuilder:default=true
@@ -110,38 +110,40 @@ type IngressSpec struct {
 }
 
 // LiveKitSpec configures voice/RTC exposure.
-// LiveKit requires direct access to TCP 7881 and a UDP port range; it cannot
-// sit behind a normal HTTP Ingress without special RTC handling.
+// The LiveKit pod uses hostNetwork so TCP 7881 and UDP 50000–50100 bind on the
+// node. Signaling HTTP (7880) is also available via the in-cluster Service for
+// Caddy's /livekit* route.
 type LiveKitSpec struct {
 	// Enabled toggles LiveKit / voice-ingress workloads.
 	// +kubebuilder:default=true
 	// +optional
 	Enabled *bool `json:"enabled,omitempty"`
 
-	// RTCPort is the LiveKit TCP RTC port.
+	// RTCPort is the LiveKit TCP RTC port (hostNetwork).
 	// +kubebuilder:default=7881
 	// +kubebuilder:validation:Minimum=1024
 	// +kubebuilder:validation:Maximum=65535
 	// +optional
 	RTCPort int32 `json:"rtcPort,omitempty"`
 
-	// UDPPortStart is the first UDP port in the RTC media range.
+	// UDPPortStart is the first UDP port in the RTC media range (hostNetwork).
 	// +kubebuilder:default=50000
 	// +kubebuilder:validation:Minimum=1024
 	// +kubebuilder:validation:Maximum=65535
 	// +optional
 	UDPPortStart int32 `json:"udpPortStart,omitempty"`
 
-	// UDPPortEnd is the last UDP port in the RTC media range.
+	// UDPPortEnd is the last UDP port in the RTC media range (hostNetwork).
 	// +kubebuilder:default=50100
 	// +kubebuilder:validation:Minimum=1024
 	// +kubebuilder:validation:Maximum=65535
 	// +optional
 	UDPPortEnd int32 `json:"udpPortEnd,omitempty"`
 
-	// ServiceType for LiveKit exposure (NodePort or LoadBalancer recommended).
+	// ServiceType is reserved for future external RTC exposure modes.
+	// The current controller always uses ClusterIP for signaling plus hostNetwork for media.
 	// +kubebuilder:validation:Enum=ClusterIP;NodePort;LoadBalancer
-	// +kubebuilder:default=LoadBalancer
+	// +kubebuilder:default=ClusterIP
 	// +optional
 	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
 }
@@ -167,8 +169,8 @@ type StoatSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	Domain string `json:"domain"`
 
-	// Version pins the Stoat component image tag family (e.g. v0.15.5).
-	// +kubebuilder:default="v0.15.5"
+	// Version pins the Stoat component image tag family (e.g. v0.16.2).
+	// +kubebuilder:default="v0.16.2"
 	// +optional
 	Version string `json:"version,omitempty"`
 

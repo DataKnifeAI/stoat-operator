@@ -4,26 +4,23 @@
 
 Kubernetes operator for [Stoat](https://stoat.chat) self-hosted instances, modeled on the upstream [stoatchat/self-hosted](https://github.com/stoatchat/self-hosted) Docker Compose stack.
 
-You declare a `Stoat` custom resource; the operator will eventually reconcile dependencies (MongoDB, Valkey, RabbitMQ, object storage), Stoat app services, HTTP ingress, and LiveKit voice exposure.
-
-This scaffold matches the DataKnifeAI kubebuilder layout used by [windrose-operator](https://github.com/DataKnifeAI/windrose-operator) and [palworld-operator](https://github.com/DataKnifeAI/palworld-operator). **Component reconciliation is not implemented yet** — the controller validates the CR, manages a finalizer, and reports `Pending` status.
+Declare a `Stoat` custom resource; the operator reconciles secrets/config, optional embedded dependencies (MongoDB, Valkey, RabbitMQ, MinIO/Silo), Stoat app services, an in-cluster Caddy edge, Ingress, and LiveKit (hostNetwork for RTC).
 
 **Operator image:** `harbor.dataknife.net/library/stoat-operator`
 
-## Architecture (target)
+## Architecture
 
 ```
-Clients → HTTPS (Ingress / Gateway API HTTPRoute)
+Clients → Ingress (TLS) → Caddy
               ↓
-      web + api + events + autumn + january + …
+   /api /ws /autumn /january /gifbox /livekit /ingress → app Services
               ↓
    MongoDB · Valkey · RabbitMQ · S3/Silo
 
-Voice → LiveKit LoadBalancer / NodePort
-         (7881/tcp + 50000–50100/udp)
+Voice RTC → LiveKit hostNetwork (7881/tcp + 50000–50100/udp on the node)
 ```
 
-Unlike the game-server operators (single pod + Envoy VIP), Stoat is an **umbrella stack CR**: many Deployments plus optional embedded or external dependencies, with LiveKit on a separate network path.
+Compose-compatible Service names (`database`, `api`, `redis`, …) are used so Stoat defaults resolve. **One `Stoat` CR per namespace** is recommended.
 
 ## CRD
 
@@ -38,10 +35,22 @@ Notable spec fields: `domain`, `version`, `generateSecrets` / `secretsRef`, `dep
 ## Quick start
 
 ```shell
+kubectl create namespace stoat
 kubectl apply -k config/default
 kubectl apply -f config/samples/stoat_v1alpha1_stoat.yaml
-kubectl get stoat -A
+kubectl get stoat -n stoat
+kubectl get deploy,svc,ingress -n stoat
 ```
+
+Point DNS for `spec.domain` at your Ingress. Set `spec.ingress.tlsSecretName` (or Ingress annotations) for HTTPS.
+
+Open firewall / security-group access for LiveKit on the scheduled node: `7881/tcp` and `50000-50100/udp`.
+
+## Secrets
+
+With `generateSecrets: true` (default), the operator creates Secret `stoat-secrets` once and **does not rotate** keys. Losing `REVOLT__FILES__ENCRYPTION_KEY` permanently locks stored files — back up the Secret.
+
+Bring-your-own: set `secretsRef` to an existing Secret with the upstream `secrets.env` keys.
 
 ## Development
 
@@ -59,13 +68,15 @@ Requires Go 1.25+, `controller-gen`, and optionally `golangci-lint`.
 |------|--------|
 | Project scaffold (kubebuilder v4) | Done |
 | `Stoat` CRD + sample | Done |
-| Finalizer + status conditions | Done |
-| Secret / config generation | Planned |
-| Embedded dependencies | Planned |
-| App Deployments + Services | Planned |
-| HTTP Ingress / Gateway | Planned |
-| LiveKit exposure | Planned |
+| Secret generation (VAPID, files, LiveKit) | Done |
+| Revolt.toml / livekit.yml / Caddy / web env | Done |
+| Embedded Mongo / Valkey / Rabbit / MinIO + bucket Job | Done |
+| App Deployments + Services | Done |
+| Caddy edge + Ingress | Done |
+| LiveKit (hostNetwork RTC) | Done |
+| External dependency refs (partial URI wiring) | Partial |
 | Upgrades from self-hosted notices | Planned |
+| Horizontal scaling / HA deps | Planned |
 
 ## References
 

@@ -301,15 +301,16 @@ spec:
                     type: boolean
                   rtcPort:
                     default: 7881
-                    description: RTCPort is the LiveKit TCP RTC port.
+                    description: RTCPort is the LiveKit TCP RTC port (hostNetwork).
                     format: int32
                     maximum: 65535
                     minimum: 1024
                     type: integer
                   serviceType:
-                    default: LoadBalancer
-                    description: ServiceType for LiveKit exposure (NodePort or LoadBalancer
-                      recommended).
+                    default: ClusterIP
+                    description: |-
+                      ServiceType is reserved for future external RTC exposure modes.
+                      The current controller always uses ClusterIP for signaling plus hostNetwork for media.
                     enum:
                     - ClusterIP
                     - NodePort
@@ -318,7 +319,7 @@ spec:
                   udpPortEnd:
                     default: 50100
                     description: UDPPortEnd is the last UDP port in the RTC media
-                      range.
+                      range (hostNetwork).
                     format: int32
                     maximum: 65535
                     minimum: 1024
@@ -326,7 +327,7 @@ spec:
                   udpPortStart:
                     default: 50000
                     description: UDPPortStart is the first UDP port in the RTC media
-                      range.
+                      range (hostNetwork).
                     format: int32
                     maximum: 65535
                     minimum: 1024
@@ -415,9 +416,9 @@ spec:
                     type: string
                 type: object
               version:
-                default: v0.15.5
+                default: v0.16.2
                 description: Version pins the Stoat component image tag family (e.g.
-                  v0.15.5).
+                  v0.16.2).
                 type: string
             required:
             - domain

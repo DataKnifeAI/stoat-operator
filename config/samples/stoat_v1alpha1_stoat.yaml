@@ -5,15 +5,16 @@ metadata:
   namespace: stoat
 spec:
   domain: chat.example.com
-  version: v0.15.5
+  version: v0.16.2
   generateSecrets: true
   dependencies:
     embed: true
   ingress:
     className: envoy
+    # tlsSecretName: chat-example-tls
   livekit:
     enabled: true
-    serviceType: LoadBalancer
+    # RTC uses hostNetwork on the LiveKit pod (UDP media range on the node).
   storage:
     size: 20Gi
     # storageClassName: truenas-csi-nfs
