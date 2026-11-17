@@ -10,13 +10,14 @@ spec:
   dependencies:
     embed: true
   ingress:
-    className: envoy
+    className: nginx
     # tlsSecretName: chat-example-tls
   livekit:
     enabled: true
     # RTC uses hostNetwork on the LiveKit pod (UDP media range on the node).
   storage:
     size: 20Gi
-    # storageClassName: truenas-csi-nfs
+    # Prefer a StorageClass that allows container UID ownership (e.g. no_mapall NFS).
+    storageClassName: truenas-csi-nfs-no-mapall
   nodeSelector:
     kubernetes.io/os: linux
