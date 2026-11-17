@@ -4,10 +4,9 @@ const (
 	finalizerName = "stoat.dataknife.ai/finalizer"
 
 	defaultVersion        = "v0.16.2"
-	// Upstream for-web:f080e84 is currently published arm64-only; use the legacy
-	// amd64 Revolt web client as the default until stoatchat publishes amd64 builds.
-	defaultWebImageTag = "latest"
-	defaultWebImage    = "ghcr.io/revoltchat/client"
+	// compose pins for-web:f080e84 (arm64-only today). :main publishes amd64.
+	defaultWebImageTag = "main"
+	defaultWebImage    = "ghcr.io/stoatchat/for-web"
 	defaultIngressClass   = "envoy"
 	defaultStorageSize    = "20Gi"
 	defaultLiveKitRTCPort = int32(7881)

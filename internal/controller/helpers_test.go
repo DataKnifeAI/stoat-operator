@@ -36,7 +36,7 @@ func TestResolveImages(t *testing.T) {
 	if images["events"] != "ghcr.io/stoatchat/events:v0.16.2" {
 		t.Fatalf("events image unexpected: %q", images["events"])
 	}
-	if images["web"] != "ghcr.io/revoltchat/client:latest" {
+	if images["web"] != "ghcr.io/stoatchat/for-web:main" {
 		t.Fatalf("web image unexpected: %q", images["web"])
 	}
 }

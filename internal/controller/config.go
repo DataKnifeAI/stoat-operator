@@ -189,6 +189,16 @@ func (r *StoatReconciler) reconcileCaddyConfig(ctx context.Context, instance *st
 		}
 	}
 
+	route /stoat.json {
+		header {
+			Access-Control-Allow-Origin *
+		}
+		rewrite * /stoat.json
+		file_server {
+			root /config
+		}
+	}
+
 	route /api* {
 		uri strip_prefix /api
 		reverse_proxy http://%s:%d
@@ -251,9 +261,10 @@ func (r *StoatReconciler) reconcileWebEnv(ctx context.Context, instance *stoatv1
 			"HOSTNAME":            ":80",
 			"VITE_HOST":           domain,
 			"VITE_API_URL":        fmt.Sprintf("https://%s/api", domain),
+			"VITE_DEV_WS_URL":     fmt.Sprintf("wss://%s/ws", domain),
+			"VITE_DEV_MEDIA_URL":  fmt.Sprintf("https://%s/autumn", domain),
+			"VITE_DEV_PROXY_URL":  fmt.Sprintf("https://%s/january", domain),
 			"VITE_DEV_GIFBOX_URL": fmt.Sprintf("https://%s/gifbox", domain),
-			// Legacy revoltchat/client (amd64 fallback when for-web is arm-only).
-			"REVOLT_PUBLIC_URL": fmt.Sprintf("https://%s", domain),
 		}
 		return nil
 	})
