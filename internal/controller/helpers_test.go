@@ -69,7 +69,15 @@ func TestRenderRevoltTOML(t *testing.T) {
 		LiveKitKey:   "lk",
 		LiveKitSec:   "lks",
 	}
-	out := renderRevoltTOML("chat.example.com", "mongodb://database", "redis://redis/", "rabbit", "http://minio:9000", s, true, 47.6, -122.3)
+	s3 := s3Settings{
+		Endpoint:         "http://minio:9000",
+		AccessKeyID:      "minioautumn",
+		SecretAccessKey:  "minioautumn",
+		Bucket:           "revolt-uploads",
+		Region:           "minio",
+		PathStyleBuckets: true,
+	}
+	out := renderRevoltTOML("chat.example.com", "mongodb://database", "redis://redis/", "rabbit", s3, s, true, 47.6, -122.3)
 	for _, want := range []string{
 		`app = "https://chat.example.com"`,
 		`mongodb = "mongodb://database"`,
@@ -87,7 +95,7 @@ func TestRenderRevoltTOML(t *testing.T) {
 		}
 	}
 
-	off := renderRevoltTOML("chat.example.com", "mongodb://database", "redis://redis/", "rabbit", "http://minio:9000", s, false, 0, 0)
+	off := renderRevoltTOML("chat.example.com", "mongodb://database", "redis://redis/", "rabbit", s3, s, false, 0, 0)
 	for _, ban := range []string{`[hosts.livekit]`, `[api.livekit.nodes.worldwide]`} {
 		if strings.Contains(off, ban) {
 			t.Fatalf("livekit disabled but found %q in:\n%s", ban, off)

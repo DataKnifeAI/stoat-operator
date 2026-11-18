@@ -28,7 +28,7 @@ func (r *StoatReconciler) reconcileDependencies(ctx context.Context, instance *s
 			return err
 		}
 	}
-	if boolDefault(instance.Spec.Dependencies.Embed, true) && instance.Spec.Dependencies.ObjectStorage == nil {
+	if boolDefault(instance.Spec.Dependencies.Embed, true) && !objectStorageExternal(instance.Spec) {
 		if err := r.reconcileMinio(ctx, instance); err != nil {
 			return err
 		}

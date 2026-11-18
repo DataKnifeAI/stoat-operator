@@ -15,5 +15,10 @@ cover.out
 # Kubernetes
 kubeconfig
 
+# Local secrets (RustFS / S3, etc.)
+.env
+.env.*
+!.env.*.example
+
 # Go
 vendor/

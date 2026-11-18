@@ -1,0 +1,33 @@
+# Example: Stoat with external RustFS object storage (embedded MinIO skipped).
+# Prerequisites:
+#   1. Bucket `revolt-uploads` on RustFS
+#   2. Secret stoat-object-storage with accessKeyId + secretAccessKey
+apiVersion: stoat.dataknife.ai/v1alpha1
+kind: Stoat
+metadata:
+  name: stoat
+  namespace: stoat
+spec:
+  domain: stoat.dataknife.net
+  version: v0.16.2
+  generateSecrets: true
+  dependencies:
+    embed: true
+    objectStorage:
+      endpoint: https://rustfs.dataknife.net:30292
+      credentialsSecret: stoat-object-storage
+      bucket: revolt-uploads
+      region: minio
+      pathStyleBuckets: true
+  ingress:
+    className: nginx
+  livekit:
+    enabled: true
+    useExternalIP: false
+    address: "192.168.14.189"
+    serviceType: LoadBalancer
+  storage:
+    size: 10Gi
+    storageClassName: truenas-csi-nfs-no-mapall
+  nodeSelector:
+    kubernetes.io/os: linux

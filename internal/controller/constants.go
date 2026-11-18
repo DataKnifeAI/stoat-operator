@@ -80,4 +80,13 @@ const (
 	keyFilesEnc     = "REVOLT__FILES__ENCRYPTION_KEY"
 	keyLiveKitKey   = "REVOLT__API__LIVEKIT__NODES__WORLDWIDE__KEY"
 	keyLiveKitSec   = "REVOLT__API__LIVEKIT__NODES__WORLDWIDE__SECRET"
+
+	// Autumn reads these via the config crate's REVOLT__ env overlay (wins over Revolt.toml).
+	// Required so path_style_buckets is not left at Stoat's embedded default (false).
+	keyS3Endpoint   = "REVOLT__FILES__S3__ENDPOINT"
+	keyS3PathStyle  = "REVOLT__FILES__S3__PATH_STYLE_BUCKETS"
+	keyS3Region     = "REVOLT__FILES__S3__REGION"
+	keyS3AccessKey  = "REVOLT__FILES__S3__ACCESS_KEY_ID"
+	keyS3SecretKey  = "REVOLT__FILES__S3__SECRET_ACCESS_KEY"
+	keyS3Bucket     = "REVOLT__FILES__S3__DEFAULT_BUCKET"
 )

@@ -32,6 +32,16 @@ Compose-compatible Service names (`database`, `api`, `redis`, …) are used so S
 
 Notable spec fields: `domain`, `version`, `generateSecrets` / `secretsRef`, `dependencies` (embed vs external), `ingress`, `livekit`, `storage`.
 
+### Object storage
+
+Two options:
+
+1. **Embedded MinIO/Silo** (default) — omit `dependencies.objectStorage`; the operator
+   deploys MinIO and creates bucket `revolt-uploads` (path-style S3).
+2. **External S3** (e.g. RustFS) — set `dependencies.objectStorage` with `endpoint`,
+   `credentialsSecret` (keys `accessKeyId` / `secretAccessKey`), and optional
+   `bucket` / `region` / `pathStyleBuckets`. See `config/samples/stoat_rustfs.yaml`.
+
 ## Quick start
 
 ```shell

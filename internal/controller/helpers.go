@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"strings"
 
 	stoatv1alpha1 "github.com/DataKnifeAI/stoat-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -115,6 +116,32 @@ func tcpProbe(port int32) *corev1.Probe {
 
 func liveKitEnabled(spec stoatv1alpha1.StoatSpec) bool {
 	return boolDefault(spec.LiveKit.Enabled, true)
+}
+
+func objectStorageExternal(spec stoatv1alpha1.StoatSpec) bool {
+	os := spec.Dependencies.ObjectStorage
+	return os != nil && strings.TrimSpace(os.Endpoint) != ""
+}
+
+func objectStorageBucket(spec stoatv1alpha1.StoatSpec) string {
+	if spec.Dependencies.ObjectStorage != nil && spec.Dependencies.ObjectStorage.Bucket != "" {
+		return spec.Dependencies.ObjectStorage.Bucket
+	}
+	return "revolt-uploads"
+}
+
+func objectStorageRegion(spec stoatv1alpha1.StoatSpec) string {
+	if spec.Dependencies.ObjectStorage != nil && spec.Dependencies.ObjectStorage.Region != "" {
+		return spec.Dependencies.ObjectStorage.Region
+	}
+	return "minio"
+}
+
+func objectStoragePathStyle(spec stoatv1alpha1.StoatSpec) bool {
+	if spec.Dependencies.ObjectStorage != nil && spec.Dependencies.ObjectStorage.PathStyleBuckets != nil {
+		return *spec.Dependencies.ObjectStorage.PathStyleBuckets
+	}
+	return true
 }
 
 func liveKitUseExternalIP(spec stoatv1alpha1.StoatSpec) bool {

@@ -106,37 +106,35 @@ spec:
                         type: string
                     type: object
                   objectStorage:
-                    description: ObjectStorage is an S3-compatible endpoint (MinIO/Silo
-                      or external S3).
+                    description: |-
+                      ObjectStorage selects Autumn's S3 backend.
+                      Omit for embedded MinIO/Silo; set endpoint + credentialsSecret for
+                      external S3 (e.g. RustFS on TrueNAS).
                     properties:
-                      secretRef:
-                        description: SecretRef holds credentials (connection URI,
-                          passwords, keys).
-                        properties:
-                          key:
-                            description: The key of the secret to select from.  Must
-                              be a valid secret key.
-                            type: string
-                          name:
-                            default: ""
-                            description: |-
-                              Name of the referent.
-                              This field is effectively required, but due to backwards compatibility is
-                              allowed to be empty. Instances of this type with an empty value here are
-                              almost certainly wrong.
-                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            type: string
-                          optional:
-                            description: Specify whether the Secret or its key must
-                              be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                        x-kubernetes-map-type: atomic
-                      uri:
-                        description: URI is a connection string or host URL for the
-                          dependency.
+                      bucket:
+                        default: revolt-uploads
+                        description: Bucket is the S3 bucket name for encrypted uploads.
+                        type: string
+                      credentialsSecret:
+                        description: |-
+                          CredentialsSecret names a Secret with keys accessKeyId and secretAccessKey.
+                          Required when Endpoint is set to an external service.
+                        type: string
+                      endpoint:
+                        description: |-
+                          Endpoint is the S3 API URL (no trailing slash), e.g. https://rustfs.example:30292
+                          or http://minio:9000 for the embedded service.
+                        type: string
+                      pathStyleBuckets:
+                        default: true
+                        description: |-
+                          PathStyleBuckets enables path-style addressing (bucket in URL path).
+                          Default true — required for Kubernetes and most S3-compatible stores
+                          (RustFS, etc.). Docker Compose MinIO often uses virtual-host style instead.
+                        type: boolean
+                      region:
+                        default: minio
+                        description: Region is the S3 region string written into Revolt.toml.
                         type: string
                     type: object
                   rabbitmq:

@@ -9,6 +9,18 @@ spec:
   generateSecrets: true
   dependencies:
     embed: true
+    # Option A (default): embedded MinIO/Silo — omit objectStorage.
+    #
+    # Option B: external S3-compatible storage (e.g. RustFS on TrueNAS).
+    # Create the Secret first:
+    #   kubectl -n stoat create secret generic stoat-object-storage \
+    #     --from-literal=accessKeyId=... --from-literal=secretAccessKey=...
+    # objectStorage:
+    #   endpoint: https://rustfs.dataknife.net:30292
+    #   credentialsSecret: stoat-object-storage
+    #   bucket: revolt-uploads
+    #   region: minio
+    #   pathStyleBuckets: true
   ingress:
     className: nginx
     # tlsSecretName: chat-example-tls

@@ -8,8 +8,18 @@ import (
 	stoatv1alpha1 "github.com/DataKnifeAI/stoat-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
+
+type s3Settings struct {
+	Endpoint         string
+	AccessKeyID      string
+	SecretAccessKey  string
+	Bucket           string
+	Region           string
+	PathStyleBuckets bool
+}
 
 func (r *StoatReconciler) reconcileConfig(ctx context.Context, instance *stoatv1alpha1.Stoat, secrets *stoatSecrets) error {
 	if err := r.reconcileRevoltConfig(ctx, instance, secrets); err != nil {
@@ -25,6 +35,13 @@ func (r *StoatReconciler) reconcileConfig(ctx context.Context, instance *stoatv1
 }
 
 func (r *StoatReconciler) reconcileRevoltConfig(ctx context.Context, instance *stoatv1alpha1.Stoat, secrets *stoatSecrets) error {
+	s3, err := r.resolveS3Settings(ctx, instance)
+	if err != nil {
+		return err
+	}
+	if err := r.reconcileS3EnvSecret(ctx, instance, s3); err != nil {
+		return err
+	}
 	domain := instance.Spec.Domain
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -32,7 +49,7 @@ func (r *StoatReconciler) reconcileRevoltConfig(ctx context.Context, instance *s
 			Namespace: instance.Namespace,
 		},
 	}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, cm, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, cm, func() error {
 		if err := controllerutil.SetControllerReference(instance, cm, r.Scheme); err != nil {
 			return err
 		}
@@ -40,7 +57,6 @@ func (r *StoatReconciler) reconcileRevoltConfig(ctx context.Context, instance *s
 		mongoHost := svcDatabase
 		redisHost := svcRedis
 		rabbitHost := svcRabbit
-		minioEndpoint := fmt.Sprintf("http://%s:9000", svcMinio)
 		if instance.Spec.Dependencies.MongoDB != nil && instance.Spec.Dependencies.MongoDB.URI != "" {
 			mongoHost = instance.Spec.Dependencies.MongoDB.URI
 		} else {
@@ -50,9 +66,6 @@ func (r *StoatReconciler) reconcileRevoltConfig(ctx context.Context, instance *s
 			redisHost = instance.Spec.Dependencies.Redis.URI
 		} else {
 			redisHost = "redis://" + svcRedis + "/"
-		}
-		if instance.Spec.Dependencies.ObjectStorage != nil && instance.Spec.Dependencies.ObjectStorage.URI != "" {
-			minioEndpoint = instance.Spec.Dependencies.ObjectStorage.URI
 		}
 		if instance.Spec.Dependencies.RabbitMQ != nil && instance.Spec.Dependencies.RabbitMQ.URI != "" {
 			// Expect host-only override for simplicity when URI is set without scheme.
@@ -70,7 +83,7 @@ func (r *StoatReconciler) reconcileRevoltConfig(ctx context.Context, instance *s
 
 		lat, lon := liveKitCoords(instance.Spec)
 		cm.Data = map[string]string{
-			"Revolt.toml": renderRevoltTOML(domain, mongoHost, redisHost, rabbitHost, minioEndpoint, secrets, liveKitEnabled(instance.Spec), lat, lon),
+			"Revolt.toml": renderRevoltTOML(domain, mongoHost, redisHost, rabbitHost, s3, secrets, liveKitEnabled(instance.Spec), lat, lon),
 			"stoat.json":  fmt.Sprintf(`{"api":"https://%s/api"}`, domain),
 		}
 		return nil
@@ -78,7 +91,73 @@ func (r *StoatReconciler) reconcileRevoltConfig(ctx context.Context, instance *s
 	return err
 }
 
-func renderRevoltTOML(domain, mongoURL, redisURL, rabbitHost, s3Endpoint string, secrets *stoatSecrets, withLiveKit bool, lat, lon float64) string {
+// reconcileS3EnvSecret writes Autumn S3 settings into stoat-secrets as REVOLT__FILES__S3__*
+// env vars. Stoat's config crate applies REVOLT__ after Revolt.toml; without this, Autumn
+// can keep the embedded default path_style_buckets=false and fail puts against RustFS
+// (virtual-host NXDOMAIN on <bucket>.<host>).
+func (r *StoatReconciler) reconcileS3EnvSecret(ctx context.Context, instance *stoatv1alpha1.Stoat, s3 s3Settings) error {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretNameFor(instance),
+			Namespace: instance.Namespace,
+		},
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		if err := controllerutil.SetControllerReference(instance, secret, r.Scheme); err != nil {
+			return err
+		}
+		secret.Labels = stoatLabels(instance.Name)
+		if secret.Data == nil {
+			secret.Data = map[string][]byte{}
+		}
+		secret.Type = corev1.SecretTypeOpaque
+		pathStyle := "false"
+		if s3.PathStyleBuckets {
+			pathStyle = "true"
+		}
+		secret.Data[keyS3Endpoint] = []byte(s3.Endpoint)
+		secret.Data[keyS3PathStyle] = []byte(pathStyle)
+		secret.Data[keyS3Region] = []byte(s3.Region)
+		secret.Data[keyS3AccessKey] = []byte(s3.AccessKeyID)
+		secret.Data[keyS3SecretKey] = []byte(s3.SecretAccessKey)
+		secret.Data[keyS3Bucket] = []byte(s3.Bucket)
+		return nil
+	})
+	return err
+}
+
+func (r *StoatReconciler) resolveS3Settings(ctx context.Context, instance *stoatv1alpha1.Stoat) (s3Settings, error) {
+	s3 := s3Settings{
+		Endpoint:         fmt.Sprintf("http://%s:%d", svcMinio, portMinio),
+		AccessKeyID:      minioUser,
+		SecretAccessKey:  minioPass,
+		Bucket:           objectStorageBucket(instance.Spec),
+		Region:           objectStorageRegion(instance.Spec),
+		PathStyleBuckets: objectStoragePathStyle(instance.Spec),
+	}
+	if !objectStorageExternal(instance.Spec) {
+		return s3, nil
+	}
+	os := instance.Spec.Dependencies.ObjectStorage
+	s3.Endpoint = strings.TrimRight(strings.TrimSpace(os.Endpoint), "/")
+	if os.CredentialsSecret == "" {
+		return s3Settings{}, fmt.Errorf("dependencies.objectStorage.credentialsSecret is required when endpoint is set")
+	}
+	sec := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{Name: os.CredentialsSecret, Namespace: instance.Namespace}, sec); err != nil {
+		return s3Settings{}, fmt.Errorf("objectStorage credentials secret %q: %w", os.CredentialsSecret, err)
+	}
+	ak := string(sec.Data["accessKeyId"])
+	sk := string(sec.Data["secretAccessKey"])
+	if ak == "" || sk == "" {
+		return s3Settings{}, fmt.Errorf("secret %q must contain accessKeyId and secretAccessKey", os.CredentialsSecret)
+	}
+	s3.AccessKeyID = ak
+	s3.SecretAccessKey = sk
+	return s3, nil
+}
+
+func renderRevoltTOML(domain, mongoURL, redisURL, rabbitHost string, s3 s3Settings, secrets *stoatSecrets, withLiveKit bool, lat, lon float64) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Managed by stoat-operator — do not edit by hand\n")
 	fmt.Fprintf(&b, "production = true\n\n")
@@ -119,14 +198,12 @@ func renderRevoltTOML(domain, mongoURL, redisURL, rabbitHost, s3Endpoint string,
 	fmt.Fprintf(&b, "[files]\n")
 	fmt.Fprintf(&b, "encryption_key = %q\n\n", secrets.FilesEncKey)
 	fmt.Fprintf(&b, "[files.s3]\n")
-	fmt.Fprintf(&b, "endpoint = %q\n", s3Endpoint)
-	// Path-style required in Kubernetes: virtual-host (bucket.minio) does not
-	// resolve like Docker Compose + MINIO_DOMAIN.
-	fmt.Fprintf(&b, "path_style_buckets = true\n")
-	fmt.Fprintf(&b, "region = \"minio\"\n")
-	fmt.Fprintf(&b, "access_key_id = %q\n", minioUser)
-	fmt.Fprintf(&b, "secret_access_key = %q\n", minioPass)
-	fmt.Fprintf(&b, "default_bucket = \"revolt-uploads\"\n")
+	fmt.Fprintf(&b, "endpoint = %q\n", s3.Endpoint)
+	fmt.Fprintf(&b, "path_style_buckets = %t\n", s3.PathStyleBuckets)
+	fmt.Fprintf(&b, "region = %q\n", s3.Region)
+	fmt.Fprintf(&b, "access_key_id = %q\n", s3.AccessKeyID)
+	fmt.Fprintf(&b, "secret_access_key = %q\n", s3.SecretAccessKey)
+	fmt.Fprintf(&b, "default_bucket = %q\n", s3.Bucket)
 	return b.String()
 }
 

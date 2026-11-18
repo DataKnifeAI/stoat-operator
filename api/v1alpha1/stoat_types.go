@@ -66,6 +66,38 @@ type ExternalDependencyRef struct {
 	SecretRef *corev1.SecretKeySelector `json:"secretRef,omitempty"`
 }
 
+// ObjectStorageSpec configures Autumn's S3-compatible backend.
+// Omit to use the embedded MinIO/Silo deployment (when dependencies.embed is true).
+// Set endpoint + credentialsSecret to use external storage (e.g. RustFS).
+type ObjectStorageSpec struct {
+	// Endpoint is the S3 API URL (no trailing slash), e.g. https://rustfs.example:30292
+	// or http://minio:9000 for the embedded service.
+	// +optional
+	Endpoint string `json:"endpoint,omitempty"`
+
+	// CredentialsSecret names a Secret with keys accessKeyId and secretAccessKey.
+	// Required when Endpoint is set to an external service.
+	// +optional
+	CredentialsSecret string `json:"credentialsSecret,omitempty"`
+
+	// Bucket is the S3 bucket name for encrypted uploads.
+	// +kubebuilder:default="revolt-uploads"
+	// +optional
+	Bucket string `json:"bucket,omitempty"`
+
+	// Region is the S3 region string written into Revolt.toml.
+	// +kubebuilder:default="minio"
+	// +optional
+	Region string `json:"region,omitempty"`
+
+	// PathStyleBuckets enables path-style addressing (bucket in URL path).
+	// Default true — required for Kubernetes and most S3-compatible stores
+	// (RustFS, etc.). Docker Compose MinIO often uses virtual-host style instead.
+	// +kubebuilder:default=true
+	// +optional
+	PathStyleBuckets *bool `json:"pathStyleBuckets,omitempty"`
+}
+
 // DependenciesSpec configures data-plane dependencies.
 // When embed is true (default), the operator provisions bundled MongoDB,
 // Valkey, RabbitMQ, and object storage. External refs override embed for that
@@ -88,9 +120,11 @@ type DependenciesSpec struct {
 	// +optional
 	RabbitMQ *ExternalDependencyRef `json:"rabbitmq,omitempty"`
 
-	// ObjectStorage is an S3-compatible endpoint (MinIO/Silo or external S3).
+	// ObjectStorage selects Autumn's S3 backend.
+	// Omit for embedded MinIO/Silo; set endpoint + credentialsSecret for
+	// external S3 (e.g. RustFS on TrueNAS).
 	// +optional
-	ObjectStorage *ExternalDependencyRef `json:"objectStorage,omitempty"`
+	ObjectStorage *ObjectStorageSpec `json:"objectStorage,omitempty"`
 }
 
 // IngressSpec configures HTTP(S) exposure for the web UI and API.
