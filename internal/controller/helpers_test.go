@@ -76,6 +76,7 @@ func TestRenderRevoltTOML(t *testing.T) {
 		`host = "rabbit"`,
 		`encryption_key = "enc"`,
 		`endpoint = "http://minio:9000"`,
+		`path_style_buckets = true`,
 		`lat = 47.6`,
 		`lon = -122.3`,
 		`[hosts.livekit]`,

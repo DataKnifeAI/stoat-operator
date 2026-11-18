@@ -120,7 +120,9 @@ func renderRevoltTOML(domain, mongoURL, redisURL, rabbitHost, s3Endpoint string,
 	fmt.Fprintf(&b, "encryption_key = %q\n\n", secrets.FilesEncKey)
 	fmt.Fprintf(&b, "[files.s3]\n")
 	fmt.Fprintf(&b, "endpoint = %q\n", s3Endpoint)
-	fmt.Fprintf(&b, "path_style_buckets = false\n")
+	// Path-style required in Kubernetes: virtual-host (bucket.minio) does not
+	// resolve like Docker Compose + MINIO_DOMAIN.
+	fmt.Fprintf(&b, "path_style_buckets = true\n")
 	fmt.Fprintf(&b, "region = \"minio\"\n")
 	fmt.Fprintf(&b, "access_key_id = %q\n", minioUser)
 	fmt.Fprintf(&b, "secret_access_key = %q\n", minioPass)
