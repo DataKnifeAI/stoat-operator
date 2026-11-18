@@ -197,9 +197,11 @@ func (r *StoatReconciler) reconcileCaddyConfig(ctx context.Context, instance *st
 }
 
 func renderCaddyfile(withLiveKit bool) string {
+	// Use mutually exclusive handle blocks only. Mixing route + catch-all handle
+	// let /api (and friends) fall through to the web SPA.
 	var b strings.Builder
 	b.WriteString(`:80 {
-	route /.well-known/stoat {
+	handle /.well-known/stoat* {
 		uri strip_prefix /.well-known/stoat
 		header {
 			Access-Control-Allow-Origin *
@@ -210,7 +212,7 @@ func renderCaddyfile(withLiveKit bool) string {
 		}
 	}
 
-	route /stoat.json {
+	handle /stoat.json {
 		header {
 			Access-Control-Allow-Origin *
 		}
@@ -221,14 +223,14 @@ func renderCaddyfile(withLiveKit bool) string {
 	}
 
 `)
-	fmt.Fprintf(&b, "\troute /api* {\n\t\turi strip_prefix /api\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcAPI, portAPI)
-	fmt.Fprintf(&b, "\troute /ws {\n\t\turi strip_prefix /ws\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcEvents, portEvents)
-	fmt.Fprintf(&b, "\troute /autumn* {\n\t\turi strip_prefix /autumn\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcAutumn, portAutumn)
-	fmt.Fprintf(&b, "\troute /january* {\n\t\turi strip_prefix /january\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcJanuary, portJanuary)
-	fmt.Fprintf(&b, "\troute /gifbox* {\n\t\turi strip_prefix /gifbox\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcGifbox, portGifbox)
+	fmt.Fprintf(&b, "\thandle /api* {\n\t\turi strip_prefix /api\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcAPI, portAPI)
+	fmt.Fprintf(&b, "\thandle /ws {\n\t\turi strip_prefix /ws\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcEvents, portEvents)
+	fmt.Fprintf(&b, "\thandle /autumn* {\n\t\turi strip_prefix /autumn\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcAutumn, portAutumn)
+	fmt.Fprintf(&b, "\thandle /january* {\n\t\turi strip_prefix /january\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcJanuary, portJanuary)
+	fmt.Fprintf(&b, "\thandle /gifbox* {\n\t\turi strip_prefix /gifbox\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcGifbox, portGifbox)
 	if withLiveKit {
-		fmt.Fprintf(&b, "\troute /livekit* {\n\t\turi strip_prefix /livekit\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcLiveKit, portLiveKitHTTP)
-		fmt.Fprintf(&b, "\troute /ingress* {\n\t\turi strip_prefix /ingress\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcVoiceIngress, portVoiceIngress)
+		fmt.Fprintf(&b, "\thandle /livekit* {\n\t\turi strip_prefix /livekit\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcLiveKit, portLiveKitHTTP)
+		fmt.Fprintf(&b, "\thandle /ingress* {\n\t\turi strip_prefix /ingress\n\t\treverse_proxy http://%s:%d\n\t}\n\n", svcVoiceIngress, portVoiceIngress)
 	}
 	// Fingerprinted assets can be cached long; HTML must revalidate so clients
 	// don't keep stale chunk refs (crashes like features.invite_only undefined).

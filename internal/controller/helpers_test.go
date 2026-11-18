@@ -96,12 +96,20 @@ func TestRenderRevoltTOML(t *testing.T) {
 
 func TestRenderCaddyfile(t *testing.T) {
 	on := renderCaddyfile(true)
-	if !strings.Contains(on, "/livekit*") || !strings.Contains(on, "/ingress*") {
-		t.Fatalf("expected livekit routes:\n%s", on)
+	for _, want := range []string{"handle /api*", "handle /livekit*", "handle /ingress*", "handle /assets*", "Cache-Control"} {
+		if !strings.Contains(on, want) {
+			t.Fatalf("missing %q in:\n%s", want, on)
+		}
+	}
+	if strings.Contains(on, "\troute ") {
+		t.Fatalf("expected handle-only Caddyfile, found route:\n%s", on)
 	}
 	off := renderCaddyfile(false)
 	if strings.Contains(off, "/livekit*") || strings.Contains(off, "/ingress*") {
 		t.Fatalf("livekit disabled but routes present:\n%s", off)
+	}
+	if !strings.Contains(off, "handle /api*") {
+		t.Fatalf("expected api handle when livekit off:\n%s", off)
 	}
 }
 
