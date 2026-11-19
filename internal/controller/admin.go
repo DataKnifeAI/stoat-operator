@@ -94,13 +94,13 @@ func (r *StoatReconciler) reconcileAdminEnvSecret(ctx context.Context, instance 
 		}
 	}
 
-	mongoURL := "mongodb://database"
-	redisURL := "redis://redis/"
-	if instance.Spec.Dependencies.MongoDB != nil && instance.Spec.Dependencies.MongoDB.URI != "" {
-		mongoURL = instance.Spec.Dependencies.MongoDB.URI
+	mongoURL, err := r.resolveDependencyURI(ctx, instance.Namespace, instance.Spec.Dependencies.MongoDB, "mongodb://"+svcDatabase)
+	if err != nil {
+		return err
 	}
-	if instance.Spec.Dependencies.Redis != nil && instance.Spec.Dependencies.Redis.URI != "" {
-		redisURL = instance.Spec.Dependencies.Redis.URI
+	redisURL, err := r.resolveDependencyURI(ctx, instance.Namespace, instance.Spec.Dependencies.Redis, "redis://"+svcRedis+"/")
+	if err != nil {
+		return err
 	}
 
 	secret := &corev1.Secret{
@@ -109,7 +109,7 @@ func (r *StoatReconciler) reconcileAdminEnvSecret(ctx context.Context, instance 
 			Namespace: instance.Namespace,
 		},
 	}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
 		if err := controllerutil.SetControllerReference(instance, secret, r.Scheme); err != nil {
 			return err
 		}

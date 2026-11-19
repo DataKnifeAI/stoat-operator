@@ -1,0 +1,42 @@
+# Example: Stoat app-tier HA + external HA data-plane (Percona / OpsTree / RabbitMQ Operator).
+# Prerequisites: deploy/ha/stoat-data applied and URI secrets created (see deploy/ha/README.md).
+# Keep embed:true until Mongo is migrated — setting mongodb/redis/rabbitmq refs skips that embed.
+apiVersion: stoat.dataknife.ai/v1alpha1
+kind: Stoat
+metadata:
+  name: stoat
+  namespace: stoat
+spec:
+  domain: chat.example.com
+  version: v0.16.2
+  generateSecrets: true
+  scaling:
+    replicas: 2
+  dependencies:
+    embed: true
+    mongodb:
+      secretRef:
+        name: stoat-mongo-uri
+        key: uri
+    redis:
+      secretRef:
+        name: stoat-redis-uri
+        key: uri
+    rabbitmq:
+      secretRef:
+        name: stoat-rabbit-uri
+        key: uri
+    # objectStorage:
+    #   endpoint: https://rustfs.example:30292
+    #   credentialsSecret: stoat-object-storage
+    #   bucket: revolt-uploads
+    #   region: minio
+    #   pathStyleBuckets: true
+  ingress:
+    className: nginx
+  livekit:
+    enabled: true
+    useExternalIP: false
+  storage:
+    size: 20Gi
+    storageClassName: truenas-csi-nfs-no-mapall

@@ -46,6 +46,20 @@ func (r *StoatReconciler) reconcileRevoltConfig(ctx context.Context, instance *s
 		return err
 	}
 	domain := instance.Spec.Domain
+	mongoURL, err := r.resolveDependencyURI(ctx, instance.Namespace, instance.Spec.Dependencies.MongoDB, "mongodb://"+svcDatabase)
+	if err != nil {
+		return err
+	}
+	redisURL, err := r.resolveDependencyURI(ctx, instance.Namespace, instance.Spec.Dependencies.Redis, "redis://"+svcRedis+"/")
+	if err != nil {
+		return err
+	}
+	rabbitRaw, err := r.resolveDependencyURI(ctx, instance.Namespace, instance.Spec.Dependencies.RabbitMQ, "")
+	if err != nil {
+		return err
+	}
+	rabbit := parseRabbitConn(rabbitRaw)
+
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configName,
@@ -57,36 +71,9 @@ func (r *StoatReconciler) reconcileRevoltConfig(ctx context.Context, instance *s
 			return err
 		}
 		cm.Labels = stoatLabels(instance.Name)
-		mongoHost := svcDatabase
-		redisHost := svcRedis
-		rabbitHost := svcRabbit
-		if instance.Spec.Dependencies.MongoDB != nil && instance.Spec.Dependencies.MongoDB.URI != "" {
-			mongoHost = instance.Spec.Dependencies.MongoDB.URI
-		} else {
-			mongoHost = "mongodb://" + svcDatabase
-		}
-		if instance.Spec.Dependencies.Redis != nil && instance.Spec.Dependencies.Redis.URI != "" {
-			redisHost = instance.Spec.Dependencies.Redis.URI
-		} else {
-			redisHost = "redis://" + svcRedis + "/"
-		}
-		if instance.Spec.Dependencies.RabbitMQ != nil && instance.Spec.Dependencies.RabbitMQ.URI != "" {
-			// Expect host-only override for simplicity when URI is set without scheme.
-			rabbitHost = strings.TrimPrefix(instance.Spec.Dependencies.RabbitMQ.URI, "amqp://")
-			if i := strings.Index(rabbitHost, "@"); i >= 0 {
-				rabbitHost = rabbitHost[i+1:]
-			}
-			if i := strings.Index(rabbitHost, ":"); i >= 0 {
-				rabbitHost = rabbitHost[:i]
-			}
-			if i := strings.Index(rabbitHost, "/"); i >= 0 {
-				rabbitHost = rabbitHost[:i]
-			}
-		}
-
 		lat, lon := liveKitCoords(instance.Spec)
 		cm.Data = map[string]string{
-			"Revolt.toml": renderRevoltTOML(domain, mongoHost, redisHost, rabbitHost, s3, secrets, liveKitEnabled(instance.Spec), lat, lon),
+			"Revolt.toml": renderRevoltTOML(domain, mongoURL, redisURL, rabbit, s3, secrets, liveKitEnabled(instance.Spec), lat, lon),
 			"stoat.json":  fmt.Sprintf(`{"api":"https://%s/api"}`, domain),
 		}
 		return nil
@@ -199,7 +186,7 @@ func (r *StoatReconciler) resolveS3Settings(ctx context.Context, instance *stoat
 	return s3, nil
 }
 
-func renderRevoltTOML(domain, mongoURL, redisURL, rabbitHost string, s3 s3Settings, secrets *stoatSecrets, withLiveKit bool, lat, lon float64) string {
+func renderRevoltTOML(domain, mongoURL, redisURL string, rabbit rabbitConn, s3 s3Settings, secrets *stoatSecrets, withLiveKit bool, lat, lon float64) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Managed by stoat-operator — do not edit by hand\n")
 	fmt.Fprintf(&b, "production = true\n\n")
@@ -218,10 +205,10 @@ func renderRevoltTOML(domain, mongoURL, redisURL, rabbitHost string, s3 s3Settin
 		fmt.Fprintf(&b, "worldwide = \"wss://%s/livekit\"\n\n", domain)
 	}
 	fmt.Fprintf(&b, "[rabbit]\n")
-	fmt.Fprintf(&b, "host = %q\n", rabbitHost)
+	fmt.Fprintf(&b, "host = %q\n", rabbit.Host)
 	fmt.Fprintf(&b, "port = 5672\n")
-	fmt.Fprintf(&b, "username = %q\n", rabbitUser)
-	fmt.Fprintf(&b, "password = %q\n", rabbitPass)
+	fmt.Fprintf(&b, "username = %q\n", rabbit.Username)
+	fmt.Fprintf(&b, "password = %q\n", rabbit.Password)
 	fmt.Fprintf(&b, "default_exchange = \"revolt.default\"\n\n")
 	fmt.Fprintf(&b, "[rabbit.queues]\n")
 	fmt.Fprintf(&b, "acks = \"internal.ack\"\n")

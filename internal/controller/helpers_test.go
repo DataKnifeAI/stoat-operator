@@ -77,7 +77,7 @@ func TestRenderRevoltTOML(t *testing.T) {
 		Region:           "minio",
 		PathStyleBuckets: true,
 	}
-	out := renderRevoltTOML("chat.example.com", "mongodb://database", "redis://redis/", "rabbit", s3, s, true, 47.6, -122.3)
+	out := renderRevoltTOML("chat.example.com", "mongodb://database", "redis://redis/", defaultRabbitConn(), s3, s, true, 47.6, -122.3)
 	for _, want := range []string{
 		`app = "https://chat.example.com"`,
 		`mongodb = "mongodb://database"`,
@@ -95,7 +95,19 @@ func TestRenderRevoltTOML(t *testing.T) {
 		}
 	}
 
-	off := renderRevoltTOML("chat.example.com", "mongodb://database", "redis://redis/", "rabbit", s3, s, false, 0, 0)
+	ext := parseRabbitConn("amqp://ha-user:s3cret@stoat-rabbit.stoat.svc:5672/")
+	extOut := renderRevoltTOML("chat.example.com", "mongodb://ext", "redis://ext/", ext, s3, s, false, 0, 0)
+	for _, want := range []string{
+		`host = "stoat-rabbit.stoat.svc"`,
+		`username = "ha-user"`,
+		`password = "s3cret"`,
+	} {
+		if !strings.Contains(extOut, want) {
+			t.Fatalf("missing %q in external rabbit toml:\n%s", want, extOut)
+		}
+	}
+
+	off := renderRevoltTOML("chat.example.com", "mongodb://database", "redis://redis/", defaultRabbitConn(), s3, s, false, 0, 0)
 	for _, ban := range []string{`[hosts.livekit]`, `[api.livekit.nodes.worldwide]`} {
 		if strings.Contains(off, ban) {
 			t.Fatalf("livekit disabled but found %q in:\n%s", ban, off)

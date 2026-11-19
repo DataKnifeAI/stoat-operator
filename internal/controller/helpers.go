@@ -1,14 +1,93 @@
 package controller
 
 import (
+	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	stoatv1alpha1 "github.com/DataKnifeAI/stoat-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
+
+// rabbitConn is the [rabbit] block written into Revolt.toml.
+type rabbitConn struct {
+	Host     string
+	Username string
+	Password string
+}
+
+func defaultRabbitConn() rabbitConn {
+	return rabbitConn{Host: svcRabbit, Username: rabbitUser, Password: rabbitPass}
+}
+
+// parseRabbitConn extracts host/user/pass from an amqp URI or bare hostname.
+// Inline URI wins over embed defaults; missing userinfo keeps embed credentials.
+func parseRabbitConn(raw string) rabbitConn {
+	c := defaultRabbitConn()
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return c
+	}
+	if !strings.Contains(raw, "://") {
+		host := raw
+		if i := strings.Index(host, "/"); i >= 0 {
+			host = host[:i]
+		}
+		if i := strings.Index(host, ":"); i >= 0 {
+			host = host[:i]
+		}
+		if host != "" {
+			c.Host = host
+		}
+		return c
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return c
+	}
+	if host := u.Hostname(); host != "" {
+		c.Host = host
+	}
+	if u.User != nil {
+		if name := u.User.Username(); name != "" {
+			c.Username = name
+		}
+		if pass, ok := u.User.Password(); ok && pass != "" {
+			c.Password = pass
+		}
+	}
+	return c
+}
+
+// resolveDependencyURI reads secretRef (preferred) or inline URI; otherwise fallback.
+func (r *StoatReconciler) resolveDependencyURI(ctx context.Context, ns string, ref *stoatv1alpha1.ExternalDependencyRef, fallback string) (string, error) {
+	if ref == nil {
+		return fallback, nil
+	}
+	if ref.SecretRef != nil && strings.TrimSpace(ref.SecretRef.Name) != "" {
+		key := ref.SecretRef.Key
+		if key == "" {
+			key = "uri"
+		}
+		sec := &corev1.Secret{}
+		if err := r.Get(ctx, types.NamespacedName{Name: ref.SecretRef.Name, Namespace: ns}, sec); err != nil {
+			return "", fmt.Errorf("dependency secret %q: %w", ref.SecretRef.Name, err)
+		}
+		val := strings.TrimSpace(string(sec.Data[key]))
+		if val == "" {
+			return "", fmt.Errorf("dependency secret %q missing key %q", ref.SecretRef.Name, key)
+		}
+		return val, nil
+	}
+	if strings.TrimSpace(ref.URI) != "" {
+		return strings.TrimSpace(ref.URI), nil
+	}
+	return fallback, nil
+}
 
 func boolDefault(v *bool, def bool) bool {
 	if v == nil {

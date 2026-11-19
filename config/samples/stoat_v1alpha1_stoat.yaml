@@ -21,6 +21,15 @@ spec:
     #   bucket: revolt-uploads
     #   region: minio
     #   pathStyleBuckets: true
+    #
+    # Option C: external HA mongo/redis/rabbit (see deploy/ha/ and stoat_ha_external_deps.yaml).
+    # After URI secrets exist + Mongo migrated:
+    # mongodb:
+    #   secretRef: { name: stoat-mongo-uri, key: uri }
+    # redis:
+    #   secretRef: { name: stoat-redis-uri, key: uri }
+    # rabbitmq:
+    #   secretRef: { name: stoat-rabbit-uri, key: uri }
   ingress:
     className: nginx
     # tlsSecretName: chat-example-tls

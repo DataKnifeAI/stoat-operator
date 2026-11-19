@@ -1,2 +1,5 @@
 resources:
   - stoat_v1alpha1_stoat.yaml
+  # Optional HA external deps example (do not apply blindly — see deploy/ha/README.md):
+  # - stoat_ha_external_deps.yaml
+
