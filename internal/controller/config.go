@@ -42,6 +42,9 @@ func (r *StoatReconciler) reconcileRevoltConfig(ctx context.Context, instance *s
 	if err := r.reconcileS3EnvSecret(ctx, instance, s3); err != nil {
 		return err
 	}
+	if err := r.reconcileGifboxEnvSecret(ctx, instance); err != nil {
+		return err
+	}
 	domain := instance.Spec.Domain
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -86,6 +89,45 @@ func (r *StoatReconciler) reconcileRevoltConfig(ctx context.Context, instance *s
 			"Revolt.toml": renderRevoltTOML(domain, mongoHost, redisHost, rabbitHost, s3, secrets, liveKitEnabled(instance.Spec), lat, lon),
 			"stoat.json":  fmt.Sprintf(`{"api":"https://%s/api"}`, domain),
 		}
+		return nil
+	})
+	return err
+}
+
+// reconcileGifboxEnvSecret copies the Gifbox Compatibility API key into stoat-secrets
+// as REVOLT__API__SECURITY__TENOR_KEY (Stoat's historical field name for the upstream key).
+func (r *StoatReconciler) reconcileGifboxEnvSecret(ctx context.Context, instance *stoatv1alpha1.Stoat) error {
+	if instance.Spec.Gifbox == nil || strings.TrimSpace(instance.Spec.Gifbox.CredentialsSecret) == "" {
+		return nil
+	}
+	srcName := strings.TrimSpace(instance.Spec.Gifbox.CredentialsSecret)
+	src := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{Name: srcName, Namespace: instance.Namespace}, src); err != nil {
+		return fmt.Errorf("gifbox credentials secret %q: %w", srcName, err)
+	}
+	key := string(src.Data["apiKey"])
+	if key == "" {
+		key = string(src.Data["tenorKey"])
+	}
+	if key == "" {
+		return fmt.Errorf("secret %q must contain apiKey (or tenorKey)", srcName)
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretNameFor(instance),
+			Namespace: instance.Namespace,
+		},
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		if err := controllerutil.SetControllerReference(instance, secret, r.Scheme); err != nil {
+			return err
+		}
+		secret.Labels = stoatLabels(instance.Name)
+		if secret.Data == nil {
+			secret.Data = map[string][]byte{}
+		}
+		secret.Type = corev1.SecretTypeOpaque
+		secret.Data[keyTenorKey] = []byte(key)
 		return nil
 	})
 	return err
@@ -331,6 +373,7 @@ func (r *StoatReconciler) reconcileWebEnv(ctx context.Context, instance *stoatv1
 			return err
 		}
 		cm.Labels = stoatLabels(instance.Name)
+		gifbox := fmt.Sprintf("https://%s/gifbox", domain)
 		cm.Data = map[string]string{
 			"HOSTNAME":            ":80",
 			"VITE_HOST":           domain,
@@ -338,7 +381,9 @@ func (r *StoatReconciler) reconcileWebEnv(ctx context.Context, instance *stoatv1
 			"VITE_DEV_WS_URL":     fmt.Sprintf("wss://%s/ws", domain),
 			"VITE_DEV_MEDIA_URL":  fmt.Sprintf("https://%s/autumn", domain),
 			"VITE_DEV_PROXY_URL":  fmt.Sprintf("https://%s/january", domain),
-			"VITE_DEV_GIFBOX_URL": fmt.Sprintf("https://%s/gifbox", domain),
+			"VITE_DEV_GIFBOX_URL": gifbox,
+			// Production for-web injects this (DEV_* is ignored outside Vite DEV).
+			"VITE_GIFBOX_URL": gifbox,
 		}
 		return nil
 	})

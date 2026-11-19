@@ -24,8 +24,16 @@ spec:
   livekit:
     enabled: true
     useExternalIP: false
+    # VIP ICE address — LiveKit must run on the kube-vip host (nodeName).
     address: "192.168.14.189"
+    nodeName: prd-apps-2
     serviceType: LoadBalancer
+  # Optional admin panel (Authentik SSO, separate Ingress host).
+  # admin:
+  #   enabled: true
+  #   domain: stoat-admin.dataknife.net
+  #   credentialsSecret: stoat-admin-sso
+  #   platformAccountId: "01FC17E1WTM2BGE4F3ARN3FDAF"
   storage:
     size: 10Gi
     storageClassName: truenas-csi-nfs-no-mapall

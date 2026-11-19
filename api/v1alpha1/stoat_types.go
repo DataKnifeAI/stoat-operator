@@ -53,6 +53,10 @@ type ImageOverrides struct {
 	// LiveKit is the LiveKit server image.
 	// +optional
 	LiveKit string `json:"livekit,omitempty"`
+
+	// AdminPanel is the Stoat admin panel image (DataKnifeAI/stoat-admin).
+	// +optional
+	AdminPanel string `json:"adminPanel,omitempty"`
 }
 
 // ExternalDependencyRef points at an existing in-cluster or external service.
@@ -165,8 +169,17 @@ type LiveKitSpec struct {
 	// Address is an optional stable LAN/VPN IP advertised to clients for RTC ICE
 	// (typically a kube-vip / MetalLB VIP). When empty, LiveKit advertises the
 	// scheduled node's LAN address (status.hostIP). Not a cluster-internal IP.
+	// When set with serviceType=LoadBalancer, pin LiveKit onto the VIP host via
+	// nodeName (or ensure kube-vip moves the VIP onto LiveKit's node) — otherwise
+	// ICE advertises the VIP while UDP/TCP 7881 listen on a different node.
 	// +optional
 	Address string `json:"address,omitempty"`
+
+	// NodeName pins the LiveKit hostNetwork pod to a specific node. Required when
+	// Address is a kube-vip VIP with externalTrafficPolicy=Local: LiveKit must
+	// run on the same node that holds the VIP or clients cannot complete ICE.
+	// +optional
+	NodeName string `json:"nodeName,omitempty"`
 
 	// Latitude of this LiveKit node (used by Stoat for nearest-node selection).
 	// +optional
@@ -204,6 +217,45 @@ type LiveKitSpec struct {
 	// +kubebuilder:default=ClusterIP
 	// +optional
 	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
+}
+
+// GifboxSpec configures Autumn's sibling GIF proxy (gifbox service).
+type GifboxSpec struct {
+	// CredentialsSecret names a Secret with key apiKey (Gifbox Compatibility API key).
+	// Synced into stoat-secrets as REVOLT__API__SECURITY__TENOR_KEY for gifbox/api.
+	// +optional
+	CredentialsSecret string `json:"credentialsSecret,omitempty"`
+}
+
+// AdminSpec configures the optional Stoat admin panel.
+// Image source: https://github.com/DataKnifeAI/stoat-admin
+// Exposed on a dedicated Ingress host with Authentik SSO (not via Stoat Caddy).
+type AdminSpec struct {
+	// Enabled deploys the admin panel when true.
+	// +kubebuilder:default=false
+	// +optional
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// Domain is the public hostname for the admin Ingress
+	// (e.g. stoat-admin.dataknife.net). Required when Enabled.
+	// +optional
+	Domain string `json:"domain,omitempty"`
+
+	// CredentialsSecret names a Secret with Authentik + NextAuth keys:
+	// authentikId, authentikSecret, authentikIssuer (no trailing slash),
+	// and optional nextAuthSecret (generated into stoat-admin-env when missing).
+	// +optional
+	CredentialsSecret string `json:"credentialsSecret,omitempty"`
+
+	// PlatformAccountId is the Stoat user ULID used as PLATFORM_ACCOUNT_ID
+	// for admin-originated platform DMs / actions.
+	// +optional
+	PlatformAccountId string `json:"platformAccountId,omitempty"`
+
+	// TLSSecretName optionally sets Ingress TLS for the admin host.
+	// When empty, falls back to spec.ingress.tlsSecretName.
+	// +optional
+	TLSSecretName string `json:"tlsSecretName,omitempty"`
 }
 
 // StorageSpec configures persistent volumes for databases and object storage.
@@ -259,6 +311,16 @@ type StoatSpec struct {
 	// LiveKit configures voice/RTC networking.
 	// +optional
 	LiveKit LiveKitSpec `json:"livekit,omitempty"`
+
+	// Gifbox configures the GIF picker upstream (Gifbox Compatibility API).
+	// Without an API key, gifbox panics on search/trending against compat.gifbox.me.
+	// Create a key at https://gifbox.me/settings after signing in.
+	// +optional
+	Gifbox *GifboxSpec `json:"gifbox,omitempty"`
+
+	// Admin configures the optional admin panel (Authentik SSO, separate Ingress).
+	// +optional
+	Admin *AdminSpec `json:"admin,omitempty"`
 
 	// Storage configures PVC defaults for embedded data services.
 	// +optional

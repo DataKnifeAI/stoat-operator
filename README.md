@@ -18,6 +18,9 @@ Clients → Ingress (TLS) → Caddy
    MongoDB · Valkey · RabbitMQ · S3/Silo
 
 Voice RTC → LiveKit hostNetwork (7881/tcp + 50000–50100/udp on the node)
+
+Admin (optional) → Ingress host (e.g. stoat-admin.*) → admin-panel:3000
+                 → Authentik SSO · MongoDB · Redis
 ```
 
 Compose-compatible Service names (`database`, `api`, `redis`, …) are used so Stoat defaults resolve. **One `Stoat` CR per namespace** is recommended.
@@ -30,7 +33,7 @@ Compose-compatible Service names (`database`, `api`, `redis`, …) are used so S
 | Kind | `Stoat` (shortName `st`) |
 | Version | `v1alpha1` |
 
-Notable spec fields: `domain`, `version`, `generateSecrets` / `secretsRef`, `dependencies` (embed vs external), `ingress`, `livekit`, `storage`.
+Notable spec fields: `domain`, `version`, `generateSecrets` / `secretsRef`, `dependencies` (embed vs external), `ingress`, `livekit`, `gifbox`, `admin`, `storage`.
 
 ### Object storage
 
@@ -41,6 +44,29 @@ Two options:
 2. **External S3** (e.g. RustFS) — set `dependencies.objectStorage` with `endpoint`,
    `credentialsSecret` (keys `accessKeyId` / `secretAccessKey`), and optional
    `bucket` / `region` / `pathStyleBuckets`. See `config/samples/stoat_rustfs.yaml`.
+
+### Admin panel
+
+Optional [DataKnifeAI/stoat-admin](https://github.com/DataKnifeAI/stoat-admin) (Authentik + Mongo), off by default. Replaces the upstream WIP `service-admin-panel`.
+
+1. Build/push image: `docker build -t harbor.dataknife.net/library/stoat-admin-panel:latest -f deploy/admin-panel/Dockerfile deploy/admin-panel && docker push …`
+2. Create an Authentik OAuth2/OIDC provider for the admin host. Redirect URI:
+   `https://<admin.domain>/api/auth/callback/authentik`
+3. Create Secret (see `.env.admin.example`):
+
+```shell
+kubectl -n stoat create secret generic stoat-admin-sso \
+  --from-literal=authentikId=… \
+  --from-literal=authentikSecret=… \
+  --from-literal=authentikIssuer=https://auth.dataknife.net/application/o/<slug> \
+  --from-literal=nextAuthSecret="$(openssl rand -base64 32)"
+```
+
+Issuer must not end with `/` (NextAuth openid-client 404s on `issuer//.well-known/...`; the operator also trims a trailing slash).
+
+4. Set `spec.admin` (`enabled`, `domain`, `credentialsSecret`, `platformAccountId` =
+   your Stoat user ULID). Operator creates Deployment/Service Ingress `stoat-admin`
+   pointing at `admin-panel:3000` (not via Stoat Caddy).
 
 ## Quick start
 

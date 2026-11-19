@@ -82,5 +82,9 @@ func (r *StoatReconciler) reconcileApps(ctx context.Context, instance *stoatv1al
 		return ensureErr("web service", err)
 	}
 
+	if err := r.reconcileAdminPanel(ctx, instance); err != nil {
+		return err
+	}
+
 	return nil
 }

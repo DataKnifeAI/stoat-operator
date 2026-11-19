@@ -162,6 +162,12 @@ func (r *StoatReconciler) reconcileLiveKit(ctx context.Context, instance *stoatv
 		deploy.Spec.Template.Spec.EnableServiceLinks = boolPtr(false)
 		deploy.Spec.Template.Spec.ImagePullSecrets = instance.Spec.ImagePullSecrets
 		deploy.Spec.Template.Spec.NodeSelector = instance.Spec.NodeSelector
+		// Pin to VIP host when set — hostNetwork LiveKit must share the node with kube-vip.
+		if nn := strings.TrimSpace(instance.Spec.LiveKit.NodeName); nn != "" {
+			deploy.Spec.Template.Spec.NodeName = nn
+		} else {
+			deploy.Spec.Template.Spec.NodeName = ""
+		}
 		deploy.Spec.Template.Spec.Containers = []corev1.Container{{
 			Name:            "livekit",
 			Image:           image,

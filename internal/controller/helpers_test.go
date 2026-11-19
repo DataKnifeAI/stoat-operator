@@ -128,6 +128,20 @@ func TestIngressClassDefault(t *testing.T) {
 	}
 }
 
+func TestAdminEnabled(t *testing.T) {
+	if adminEnabled(stoatv1alpha1.StoatSpec{}) {
+		t.Fatal("expected admin disabled when unset")
+	}
+	off := false
+	if adminEnabled(stoatv1alpha1.StoatSpec{Admin: &stoatv1alpha1.AdminSpec{Enabled: &off}}) {
+		t.Fatal("expected admin disabled when enabled=false")
+	}
+	on := true
+	if !adminEnabled(stoatv1alpha1.StoatSpec{Admin: &stoatv1alpha1.AdminSpec{Enabled: &on}}) {
+		t.Fatal("expected admin enabled when enabled=true")
+	}
+}
+
 func TestRenderLiveKitYAMLAddress(t *testing.T) {
 	s := &stoatSecrets{LiveKitKey: "lk", LiveKitSec: "lks"}
 	spec := stoatv1alpha1.StoatSpec{

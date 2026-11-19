@@ -62,6 +62,36 @@ spec:
               Models the upstream self-hosted compose stack as a single umbrella CR:
               https://github.com/stoatchat/self-hosted
             properties:
+              admin:
+                description: Admin configures the optional service-admin-panel (Authentik
+                  SSO, separate Ingress).
+                properties:
+                  credentialsSecret:
+                    description: |-
+                      CredentialsSecret names a Secret with Authentik + NextAuth keys:
+                      authentikId, authentikSecret, authentikIssuer (no trailing slash),
+                      and optional nextAuthSecret (generated into stoat-admin-env when missing).
+                    type: string
+                  domain:
+                    description: |-
+                      Domain is the public hostname for the admin Ingress
+                      (e.g. stoat-admin.dataknife.net). Required when Enabled.
+                    type: string
+                  enabled:
+                    default: false
+                    description: Enabled deploys the admin panel when true.
+                    type: boolean
+                  platformAccountId:
+                    description: |-
+                      PlatformAccountId is the Stoat user ULID used as PLATFORM_ACCOUNT_ID
+                      for admin-originated platform DMs / actions.
+                    type: string
+                  tlsSecretName:
+                    description: |-
+                      TLSSecretName optionally sets Ingress TLS for the admin host.
+                      When empty, falls back to spec.ingress.tlsSecretName.
+                    type: string
+                type: object
               dependencies:
                 description: Dependencies configures MongoDB, Valkey/Redis, RabbitMQ,
                   and object storage.
@@ -216,6 +246,18 @@ spec:
                   keys and service passwords. Losing these secrets can permanently lock
                   file access — back them up.
                 type: boolean
+              gifbox:
+                description: |-
+                  Gifbox configures the GIF picker upstream (Gifbox Compatibility API).
+                  Without an API key, gifbox panics on search/trending against compat.gifbox.me.
+                  Create a key at https://gifbox.me/settings after signing in.
+                properties:
+                  credentialsSecret:
+                    description: |-
+                      CredentialsSecret names a Secret with key apiKey (Gifbox Compatibility API key).
+                      Synced into stoat-secrets as REVOLT__API__SECURITY__TENOR_KEY for gifbox/api.
+                    type: string
+                type: object
               imagePullPolicy:
                 default: IfNotPresent
                 description: ImagePullPolicy for Stoat component containers.
@@ -242,6 +284,9 @@ spec:
               images:
                 description: Images optionally overrides individual component images.
                 properties:
+                  adminPanel:
+                    description: AdminPanel is the Stoat service-admin-panel image.
+                    type: string
                   api:
                     description: API is the Stoat API server image.
                     type: string
@@ -298,6 +343,9 @@ spec:
                       Address is an optional stable LAN/VPN IP advertised to clients for RTC ICE
                       (typically a kube-vip / MetalLB VIP). When empty, LiveKit advertises the
                       scheduled node's LAN address (status.hostIP). Not a cluster-internal IP.
+                      When set with serviceType=LoadBalancer, pin LiveKit onto the VIP host via
+                      nodeName (or ensure kube-vip moves the VIP onto LiveKit's node) — otherwise
+                      ICE advertises the VIP while UDP/TCP 7881 listen on a different node.
                     type: string
                   enabled:
                     default: true
@@ -313,6 +361,12 @@ spec:
                     description: Longitude of this LiveKit node (used by Stoat for
                       nearest-node selection).
                     type: number
+                  nodeName:
+                    description: |-
+                      NodeName pins the LiveKit hostNetwork pod to a specific node. Required when
+                      Address is a kube-vip VIP with externalTrafficPolicy=Local: LiveKit must
+                      run on the same node that holds the VIP or clients cannot complete ICE.
+                    type: string
                   rtcPort:
                     default: 7881
                     description: RTCPort is the LiveKit TCP RTC port (hostNetwork).

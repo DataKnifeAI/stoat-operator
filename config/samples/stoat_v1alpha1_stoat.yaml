@@ -33,12 +33,20 @@ spec:
     # Optional stable LAN/VPN VIP (kube-vip). Advertised as NODE_IP; pair with
     # LoadBalancer to claim the VIP for TCP 7881 + UDP media range.
     # Omit to advertise the scheduled node's LAN IP.
+    # When using a VIP, pin LiveKit to the kube-vip host (hostNetwork + ETP Local).
     # address: "192.168.14.189"
+    # nodeName: prd-apps-2
     # serviceType: LoadBalancer
     # Optional node coords for Stoat nearest-node selection.
     # latitude: 47.6062
     # longitude: -122.3321
     # RTC uses hostNetwork on the LiveKit pod (UDP media range on the node).
+  # Optional admin panel — separate Ingress + Authentik SSO (see README).
+  # admin:
+  #   enabled: true
+  #   domain: stoat-admin.example.com
+  #   credentialsSecret: stoat-admin-sso
+  #   platformAccountId: "01XXXXXXXXXXXXXXXXXXXXXXXX"
   storage:
     size: 20Gi
     # Prefer a StorageClass that allows container UID ownership (e.g. no_mapall NFS).

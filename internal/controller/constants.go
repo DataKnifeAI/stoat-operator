@@ -23,6 +23,8 @@ const (
 	defaultPushdImage        = "ghcr.io/stoatchat/pushd"
 	defaultVoiceIngressImage = "ghcr.io/stoatchat/voice-ingress"
 	defaultLiveKitImage      = "ghcr.io/stoatchat/livekit-server"
+	defaultAdminPanelImage   = "harbor.dataknife.net/library/stoat-admin-panel"
+	defaultAdminPanelTag     = "latest"
 
 	mongoImage   = "docker.io/mongo:8"
 	redisImage   = "valkey/valkey:9-alpine"
@@ -49,12 +51,15 @@ const (
 	svcLiveKitRTC   = "livekit-rtc"
 	svcWeb          = "web"
 	svcCaddy        = "caddy"
+	svcAdminPanel   = "admin-panel"
 
 	secretName     = "stoat-secrets"
 	configName     = "stoat-config"
 	livekitCfgName = "stoat-livekit"
 	caddyCfgName   = "stoat-caddy"
 	webEnvName     = "stoat-web-env"
+	adminEnvName   = "stoat-admin-env"
+	adminIngressName = "stoat-admin"
 
 	minioUser = "minioautumn"
 	minioPass = "minioautumn"
@@ -67,6 +72,7 @@ const (
 	portJanuary      int32 = 14705
 	portGifbox       int32 = 14706
 	portWeb          int32 = 5000
+	portAdminPanel   int32 = 3000
 	portCaddy        int32 = 80
 	portLiveKitHTTP  int32 = 7880
 	portVoiceIngress int32 = 8500
@@ -89,4 +95,7 @@ const (
 	keyS3AccessKey  = "REVOLT__FILES__S3__ACCESS_KEY_ID"
 	keyS3SecretKey  = "REVOLT__FILES__S3__SECRET_ACCESS_KEY"
 	keyS3Bucket     = "REVOLT__FILES__S3__DEFAULT_BUCKET"
+
+	// Gifbox / Tenor-compat upstream key (field name kept for Stoat Revolt.toml).
+	keyTenorKey = "REVOLT__API__SECURITY__TENOR_KEY"
 )

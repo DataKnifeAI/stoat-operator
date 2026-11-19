@@ -53,7 +53,12 @@ func resolveImages(spec stoatv1alpha1.StoatSpec) map[string]string {
 		"voice-ingress": imageRef(img.VoiceIngress, defaultVoiceIngressImage, v),
 		"web":           web,
 		"livekit":       imageRef(img.LiveKit, defaultLiveKitImage, defaultLiveKitImageTag),
+		"admin-panel":   imageRef(img.AdminPanel, defaultAdminPanelImage, defaultAdminPanelTag),
 	}
+}
+
+func adminEnabled(spec stoatv1alpha1.StoatSpec) bool {
+	return spec.Admin != nil && boolDefault(spec.Admin.Enabled, false)
 }
 
 func stoatLabels(name string) map[string]string {
