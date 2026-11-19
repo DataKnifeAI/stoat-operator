@@ -62,7 +62,7 @@ kubectl -n stoat create secret generic stoat-admin-sso \
   --from-literal=nextAuthSecret="$(openssl rand -base64 32)"
 ```
 
-Issuer must not end with `/` (NextAuth openid-client 404s on `issuer//.well-known/...`; the operator also trims a trailing slash).
+Authentik’s discovery `issuer` ends with `/`. The admin app normalizes either form; the operator still trims when writing env.
 
 4. Set `spec.admin` (`enabled`, `domain`, `credentialsSecret`, `platformAccountId` =
    your Stoat user ULID). Operator creates Deployment/Service Ingress `stoat-admin`
