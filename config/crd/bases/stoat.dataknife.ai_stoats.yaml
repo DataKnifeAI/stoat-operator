@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.2
+    controller-gen.kubebuilder.io/version: v0.19.0
   name: stoats.stoat.dataknife.ai
 spec:
   group: stoat.dataknife.ai
@@ -63,7 +63,7 @@ spec:
               https://github.com/stoatchat/self-hosted
             properties:
               admin:
-                description: Admin configures the optional service-admin-panel (Authentik
+                description: Admin configures the optional admin panel (Authentik
                   SSO, separate Ingress).
                 properties:
                   credentialsSecret:
@@ -285,7 +285,7 @@ spec:
                 description: Images optionally overrides individual component images.
                 properties:
                   adminPanel:
-                    description: AdminPanel is the Stoat service-admin-panel image.
+                    description: AdminPanel is the Stoat admin panel image (DataKnifeAI/stoat-admin).
                     type: string
                   api:
                     description: API is the Stoat API server image.
@@ -474,6 +474,75 @@ spec:
                       otherwise to an implementation-defined value. Requests cannot exceed Limits.
                       More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                     type: object
+                type: object
+              scaling:
+                description: |-
+                  Scaling configures horizontal replicas for stateless components.
+                  Set replicas: 2 (or higher) for app-tier HA behind Services/Ingress.
+                properties:
+                  adminPanel:
+                    description: AdminPanel overrides replicas for the admin panel.
+                    format: int32
+                    maximum: 20
+                    minimum: 1
+                    type: integer
+                  api:
+                    description: API overrides replicas for the API deployment.
+                    format: int32
+                    maximum: 20
+                    minimum: 1
+                    type: integer
+                  autumn:
+                    description: Autumn overrides replicas for the file server.
+                    format: int32
+                    maximum: 20
+                    minimum: 1
+                    type: integer
+                  caddy:
+                    description: Caddy overrides replicas for the edge proxy.
+                    format: int32
+                    maximum: 20
+                    minimum: 1
+                    type: integer
+                  events:
+                    description: Events overrides replicas for the events deployment.
+                    format: int32
+                    maximum: 20
+                    minimum: 1
+                    type: integer
+                  gifbox:
+                    description: Gifbox overrides replicas for gifbox.
+                    format: int32
+                    maximum: 20
+                    minimum: 1
+                    type: integer
+                  january:
+                    description: January overrides replicas for the proxy.
+                    format: int32
+                    maximum: 20
+                    minimum: 1
+                    type: integer
+                  pushd:
+                    description: Pushd overrides replicas for push notifications.
+                    format: int32
+                    maximum: 20
+                    minimum: 1
+                    type: integer
+                  replicas:
+                    default: 1
+                    description: |-
+                      Replicas is the default replica count for scalable app components
+                      (api, events, autumn, january, gifbox, web, caddy, pushd, admin-panel).
+                    format: int32
+                    maximum: 20
+                    minimum: 1
+                    type: integer
+                  web:
+                    description: Web overrides replicas for the for-web front-end.
+                    format: int32
+                    maximum: 20
+                    minimum: 1
+                    type: integer
                 type: object
               secretsRef:
                 description: |-

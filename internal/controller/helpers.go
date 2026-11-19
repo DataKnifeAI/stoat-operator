@@ -61,6 +61,51 @@ func adminEnabled(spec stoatv1alpha1.StoatSpec) bool {
 	return spec.Admin != nil && boolDefault(spec.Admin.Enabled, false)
 }
 
+// replicaFor returns desired replicas for a component. Singleton workloads
+// (crond, livekit, embedded deps) always stay at 1.
+func replicaFor(spec stoatv1alpha1.StoatSpec, component string) int32 {
+	switch component {
+	case "crond", "voice-ingress", "livekit", "database", "redis", "rabbit", "minio", "createbuckets":
+		return 1
+	}
+
+	s := spec.Scaling
+	if s == nil {
+		return 1
+	}
+	pick := func(override *int32) int32 {
+		if override != nil && *override > 0 {
+			return *override
+		}
+		if s.Replicas != nil && *s.Replicas > 0 {
+			return *s.Replicas
+		}
+		return 1
+	}
+	switch component {
+	case "api":
+		return pick(s.API)
+	case "events":
+		return pick(s.Events)
+	case "autumn":
+		return pick(s.Autumn)
+	case "january":
+		return pick(s.January)
+	case "gifbox":
+		return pick(s.Gifbox)
+	case "web":
+		return pick(s.Web)
+	case "caddy":
+		return pick(s.Caddy)
+	case "pushd":
+		return pick(s.Pushd)
+	case "admin-panel":
+		return pick(s.AdminPanel)
+	default:
+		return pick(nil)
+	}
+}
+
 func stoatLabels(name string) map[string]string {
 	return map[string]string{
 		"app.kubernetes.io/name":       "stoat",

@@ -30,6 +30,8 @@ type deploySpec struct {
 	Resources          corev1.ResourceRequirements
 	SecurityContext    *corev1.SecurityContext
 	PodSecurityContext *corev1.PodSecurityContext
+	// Recreate forces Recreate strategy even when replicas > 1 (rare).
+	Recreate bool
 }
 
 func (r *StoatReconciler) reconcilePVC(ctx context.Context, instance *stoatv1alpha1.Stoat, name, component string) error {
@@ -92,6 +94,9 @@ func (r *StoatReconciler) reconcileDeployment(ctx context.Context, instance *sto
 	labels := componentLabels(instance.Name, spec.Component)
 	replicas := spec.Replicas
 	if replicas == 0 {
+		replicas = replicaFor(instance.Spec, spec.Component)
+	}
+	if replicas == 0 {
 		replicas = 1
 	}
 	resources := spec.Resources
@@ -109,7 +114,19 @@ func (r *StoatReconciler) reconcileDeployment(ctx context.Context, instance *sto
 		deploy.Spec.Replicas = &replicas
 		deploy.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
 		deploy.Spec.Template.ObjectMeta.Labels = labels
-		deploy.Spec.Strategy = appsv1.DeploymentStrategy{Type: appsv1.RecreateDeploymentStrategyType}
+		if replicas > 1 && !spec.Recreate {
+			maxUnavailable := intstr.FromInt32(0)
+			maxSurge := intstr.FromInt32(1)
+			deploy.Spec.Strategy = appsv1.DeploymentStrategy{
+				Type: appsv1.RollingUpdateDeploymentStrategyType,
+				RollingUpdate: &appsv1.RollingUpdateDeployment{
+					MaxUnavailable: &maxUnavailable,
+					MaxSurge:       &maxSurge,
+				},
+			}
+		} else {
+			deploy.Spec.Strategy = appsv1.DeploymentStrategy{Type: appsv1.RecreateDeploymentStrategyType}
+		}
 		container := corev1.Container{
 			Name:            spec.Component,
 			Image:           spec.Image,
@@ -130,6 +147,21 @@ func (r *StoatReconciler) reconcileDeployment(ctx context.Context, instance *sto
 		deploy.Spec.Template.Spec.ImagePullSecrets = instance.Spec.ImagePullSecrets
 		deploy.Spec.Template.Spec.NodeSelector = instance.Spec.NodeSelector
 		deploy.Spec.Template.Spec.SecurityContext = spec.PodSecurityContext
+		if replicas > 1 {
+			deploy.Spec.Template.Spec.Affinity = &corev1.Affinity{
+				PodAntiAffinity: &corev1.PodAntiAffinity{
+					PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{{
+						Weight: 100,
+						PodAffinityTerm: corev1.PodAffinityTerm{
+							LabelSelector: &metav1.LabelSelector{MatchLabels: labels},
+							TopologyKey:   "kubernetes.io/hostname",
+						},
+					}},
+				},
+			}
+		} else {
+			deploy.Spec.Template.Spec.Affinity = nil
+		}
 		return nil
 	})
 	return err

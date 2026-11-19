@@ -33,7 +33,15 @@ Compose-compatible Service names (`database`, `api`, `redis`, …) are used so S
 | Kind | `Stoat` (shortName `st`) |
 | Version | `v1alpha1` |
 
-Notable spec fields: `domain`, `version`, `generateSecrets` / `secretsRef`, `dependencies` (embed vs external), `ingress`, `livekit`, `gifbox`, `admin`, `storage`.
+Notable spec fields: `domain`, `version`, `generateSecrets` / `secretsRef`, `dependencies` (embed vs external), `ingress`, `livekit`, `gifbox`, `admin`, `scaling`, `storage`.
+
+### App-tier HA
+
+Set `spec.scaling.replicas: 2` (or per-component overrides) to run multiple pods for
+api, events, autumn, january, gifbox, web, caddy, pushd, and admin-panel. Rolling
+updates + preferred pod anti-affinity apply when replicas > 1. Crond, LiveKit,
+voice-ingress, and embedded Mongo/Redis/Rabbit/MinIO stay singleton — point
+`dependencies` at external managed services for data-plane HA.
 
 ### Object storage
 
@@ -116,7 +124,8 @@ Requires Go 1.25+, `controller-gen`, and optionally `golangci-lint`.
 | LiveKit (hostNetwork RTC) | Done |
 | External dependency refs (partial URI wiring) | Partial |
 | Upgrades from self-hosted notices | Planned |
-| Horizontal scaling / HA deps | Planned |
+| App-tier HA (`spec.scaling.replicas`) | Done |
+| HA embedded Mongo/Redis/Rabbit | External deps recommended |
 
 ## References
 

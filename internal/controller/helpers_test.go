@@ -128,6 +128,24 @@ func TestIngressClassDefault(t *testing.T) {
 	}
 }
 
+func TestReplicaFor(t *testing.T) {
+	two := int32(2)
+	three := int32(3)
+	spec := stoatv1alpha1.StoatSpec{Scaling: &stoatv1alpha1.ScalingSpec{Replicas: &two, API: &three}}
+	if got := replicaFor(spec, "api"); got != 3 {
+		t.Fatalf("api override: got %d want 3", got)
+	}
+	if got := replicaFor(spec, "web"); got != 2 {
+		t.Fatalf("web default: got %d want 2", got)
+	}
+	if got := replicaFor(spec, "crond"); got != 1 {
+		t.Fatalf("crond singleton: got %d want 1", got)
+	}
+	if got := replicaFor(stoatv1alpha1.StoatSpec{}, "api"); got != 1 {
+		t.Fatalf("unset scaling: got %d want 1", got)
+	}
+}
+
 func TestAdminEnabled(t *testing.T) {
 	if adminEnabled(stoatv1alpha1.StoatSpec{}) {
 		t.Fatal("expected admin disabled when unset")

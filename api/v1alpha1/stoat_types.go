@@ -270,6 +270,73 @@ type StorageSpec struct {
 	StorageClassName string `json:"storageClassName,omitempty"`
 }
 
+// ScalingSpec controls horizontal replicas for stateless Stoat components.
+// Embedded Mongo/Redis/Rabbit/MinIO and LiveKit stay single-replica (use
+// external managed deps for true data-plane HA).
+type ScalingSpec struct {
+	// Replicas is the default replica count for scalable app components
+	// (api, events, autumn, january, gifbox, web, caddy, pushd, admin-panel).
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=20
+	// +optional
+	Replicas *int32 `json:"replicas,omitempty"`
+
+	// API overrides replicas for the API deployment.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=20
+	API *int32 `json:"api,omitempty"`
+
+	// Events overrides replicas for the events deployment.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=20
+	Events *int32 `json:"events,omitempty"`
+
+	// Autumn overrides replicas for the file server.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=20
+	Autumn *int32 `json:"autumn,omitempty"`
+
+	// January overrides replicas for the proxy.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=20
+	January *int32 `json:"january,omitempty"`
+
+	// Gifbox overrides replicas for gifbox.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=20
+	Gifbox *int32 `json:"gifbox,omitempty"`
+
+	// Web overrides replicas for the for-web front-end.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=20
+	Web *int32 `json:"web,omitempty"`
+
+	// Caddy overrides replicas for the edge proxy.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=20
+	Caddy *int32 `json:"caddy,omitempty"`
+
+	// Pushd overrides replicas for push notifications.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=20
+	Pushd *int32 `json:"pushd,omitempty"`
+
+	// AdminPanel overrides replicas for the admin panel.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=20
+	AdminPanel *int32 `json:"adminPanel,omitempty"`
+}
+
 // StoatSpec defines the desired state of a Stoat instance.
 // Models the upstream self-hosted compose stack as a single umbrella CR:
 // https://github.com/stoatchat/self-hosted
@@ -321,6 +388,11 @@ type StoatSpec struct {
 	// Admin configures the optional admin panel (Authentik SSO, separate Ingress).
 	// +optional
 	Admin *AdminSpec `json:"admin,omitempty"`
+
+	// Scaling configures horizontal replicas for stateless components.
+	// Set replicas: 2 (or higher) for app-tier HA behind Services/Ingress.
+	// +optional
+	Scaling *ScalingSpec `json:"scaling,omitempty"`
 
 	// Storage configures PVC defaults for embedded data services.
 	// +optional

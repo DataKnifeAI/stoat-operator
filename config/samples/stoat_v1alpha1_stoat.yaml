@@ -47,6 +47,9 @@ spec:
   #   domain: stoat-admin.example.com
   #   credentialsSecret: stoat-admin-sso
   #   platformAccountId: "01XXXXXXXXXXXXXXXXXXXXXXXX"
+  # App-tier HA (api/events/web/caddy/…). Embedded Mongo/Redis/Rabbit stay 1x.
+  # scaling:
+  #   replicas: 2
   storage:
     size: 20Gi
     # Prefer a StorageClass that allows container UID ownership (e.g. no_mapall NFS).
