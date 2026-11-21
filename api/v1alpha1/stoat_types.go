@@ -132,17 +132,36 @@ type DependenciesSpec struct {
 }
 
 // IngressSpec configures HTTP(S) exposure for the web UI and API.
+// When ClassName names a GatewayClass (e.g. "traefik"), the operator
+// reconciles HTTPRoutes attached to that Gateway instead of Ingress.
 type IngressSpec struct {
 	// ClassName is the IngressClass or GatewayClass name.
+	// Use "traefik" for RKE2 Traefik Gateway API (HTTPRoute).
 	// +kubebuilder:default="nginx"
 	// +optional
 	ClassName string `json:"className,omitempty"`
+
+	// GatewayName is the Gateway object name when ClassName is a GatewayClass.
+	// Defaults to "traefik-gateway".
+	// +optional
+	GatewayName string `json:"gatewayName,omitempty"`
+
+	// GatewayNamespace is the Gateway namespace when using HTTPRoute.
+	// Defaults to "kube-system" (RKE2 Traefik chart default).
+	// +optional
+	GatewayNamespace string `json:"gatewayNamespace,omitempty"`
+
+	// ListenerName is the Gateway listener sectionName for parentRefs.
+	// Defaults to "websecure".
+	// +optional
+	ListenerName string `json:"listenerName,omitempty"`
 
 	// Annotations applied to the Ingress / HTTPRoute resources.
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
 
-	// TLSSecretName is an optional TLS Secret for HTTPS termination.
+	// TLSSecretName is an optional TLS Secret for HTTPS termination (Ingress only;
+	// Traefik Gateway terminates TLS on the Gateway listener).
 	// +optional
 	TLSSecretName string `json:"tlsSecretName,omitempty"`
 }

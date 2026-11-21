@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.17.2
   name: stoats.stoat.dataknife.ai
 spec:
   group: stoat.dataknife.ai
@@ -328,11 +328,29 @@ spec:
                     type: object
                   className:
                     default: nginx
-                    description: ClassName is the IngressClass or GatewayClass name.
+                    description: |-
+                      ClassName is the IngressClass or GatewayClass name.
+                      Use "traefik" for RKE2 Traefik Gateway API (HTTPRoute).
+                    type: string
+                  gatewayName:
+                    description: |-
+                      GatewayName is the Gateway object name when ClassName is a GatewayClass.
+                      Defaults to "traefik-gateway".
+                    type: string
+                  gatewayNamespace:
+                    description: |-
+                      GatewayNamespace is the Gateway namespace when using HTTPRoute.
+                      Defaults to "kube-system" (RKE2 Traefik chart default).
+                    type: string
+                  listenerName:
+                    description: |-
+                      ListenerName is the Gateway listener sectionName for parentRefs.
+                      Defaults to "websecure".
                     type: string
                   tlsSecretName:
-                    description: TLSSecretName is an optional TLS Secret for HTTPS
-                      termination.
+                    description: |-
+                      TLSSecretName is an optional TLS Secret for HTTPS termination (Ingress only;
+                      Traefik Gateway terminates TLS on the Gateway listener).
                     type: string
                 type: object
               livekit:

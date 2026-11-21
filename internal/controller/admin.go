@@ -135,6 +135,20 @@ func (r *StoatReconciler) reconcileAdminEnvSecret(ctx context.Context, instance 
 
 func (r *StoatReconciler) reconcileAdminIngress(ctx context.Context, instance *stoatv1alpha1.Stoat) error {
 	admin := instance.Spec.Admin
+	host := strings.TrimSpace(admin.Domain)
+	className := ingressClass(instance.Spec)
+	if r.usesGatewayClass(ctx, className) {
+		if err := r.deleteIngressIfExists(ctx, instance.Namespace, adminIngressName); err != nil {
+			return ensureErr("delete legacy admin ingress", err)
+		}
+		err := r.reconcileHTTPRoute(ctx, instance, adminIngressName, host, svcAdminPanel, portAdminPanel,
+			componentLabels(instance.Name, "admin-panel"))
+		return ensureErr("admin httproute", err)
+	}
+	if err := r.deleteHTTPRouteIfExists(ctx, instance.Namespace, adminIngressName); err != nil {
+		return ensureErr("delete admin httproute", err)
+	}
+
 	ing := &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      adminIngressName,
@@ -153,9 +167,7 @@ func (r *StoatReconciler) reconcileAdminIngress(ctx context.Context, instance *s
 		}
 		ing.Annotations = annotations
 
-		className := ingressClass(instance.Spec)
 		ing.Spec.IngressClassName = &className
-		host := strings.TrimSpace(admin.Domain)
 		ing.Spec.Rules = []networkingv1.IngressRule{{
 			Host: host,
 			IngressRuleValue: networkingv1.IngressRuleValue{
