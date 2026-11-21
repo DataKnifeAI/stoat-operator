@@ -140,6 +140,24 @@ func TestIngressClassDefault(t *testing.T) {
 	}
 }
 
+func TestGatewayDefaults(t *testing.T) {
+	if got := gatewayName(stoatv1alpha1.StoatSpec{}); got != defaultGatewayName {
+		t.Fatalf("gateway name: got %q want %q", got, defaultGatewayName)
+	}
+	if got := gatewayNamespace(stoatv1alpha1.StoatSpec{}); got != defaultGatewayNamespace {
+		t.Fatalf("gateway ns: got %q want %q", got, defaultGatewayNamespace)
+	}
+	if got := listenerName(stoatv1alpha1.StoatSpec{}); got != defaultListenerName {
+		t.Fatalf("listener: got %q want %q", got, defaultListenerName)
+	}
+	spec := stoatv1alpha1.StoatSpec{Ingress: stoatv1alpha1.IngressSpec{
+		GatewayName: "g", GatewayNamespace: "ns", ListenerName: "web",
+	}}
+	if gatewayName(spec) != "g" || gatewayNamespace(spec) != "ns" || listenerName(spec) != "web" {
+		t.Fatalf("overrides not applied: %+v", spec.Ingress)
+	}
+}
+
 func TestReplicaFor(t *testing.T) {
 	two := int32(2)
 	three := int32(3)

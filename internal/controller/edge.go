@@ -73,6 +73,18 @@ func (r *StoatReconciler) reconcileCaddy(ctx context.Context, instance *stoatv1a
 }
 
 func (r *StoatReconciler) reconcileIngress(ctx context.Context, instance *stoatv1alpha1.Stoat) error {
+	className := ingressClass(instance.Spec)
+	if r.usesGatewayClass(ctx, className) {
+		if err := r.deleteIngressIfExists(ctx, instance.Namespace, "stoat"); err != nil {
+			return ensureErr("delete legacy ingress", err)
+		}
+		err := r.reconcileHTTPRoute(ctx, instance, "stoat", instance.Spec.Domain, svcCaddy, portCaddy, stoatLabels(instance.Name))
+		return ensureErr("httproute", err)
+	}
+	if err := r.deleteHTTPRouteIfExists(ctx, instance.Namespace, "stoat"); err != nil {
+		return ensureErr("delete httproute", err)
+	}
+
 	ing := &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "stoat",
@@ -91,7 +103,6 @@ func (r *StoatReconciler) reconcileIngress(ctx context.Context, instance *stoatv
 		}
 		ing.Annotations = annotations
 
-		className := ingressClass(instance.Spec)
 		ing.Spec.IngressClassName = &className
 		ing.Spec.Rules = []networkingv1.IngressRule{{
 			Host: instance.Spec.Domain,
