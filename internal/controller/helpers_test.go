@@ -177,9 +177,24 @@ func TestRenderLiveKitYAMLAddress(t *testing.T) {
 	spec := stoatv1alpha1.StoatSpec{
 		LiveKit: stoatv1alpha1.LiveKitSpec{Address: "192.168.14.189"},
 	}
-	out := renderLiveKitYAML(spec, s, 7881, 50000, 50100)
+	out := renderLiveKitYAML(spec, s, "redis://redis/", 7881, 50000, 50100)
 	if !strings.Contains(out, `use_external_ip: false`) || !strings.Contains(out, `node_ip: "192.168.14.189"`) {
 		t.Fatalf("expected VIP node_ip:\n%s", out)
+	}
+	if !strings.Contains(out, "address: redis:6379") {
+		t.Fatalf("expected default redis address:\n%s", out)
+	}
+}
+
+func TestRenderLiveKitYAMLExternalRedis(t *testing.T) {
+	s := &stoatSecrets{LiveKitKey: "lk", LiveKitSec: "lks"}
+	spec := stoatv1alpha1.StoatSpec{LiveKit: stoatv1alpha1.LiveKitSpec{Address: "192.168.14.189"}}
+	out := renderLiveKitYAML(spec, s, "redis://:s3cret@stoat-redis-master.stoat.svc.cluster.local:6379/", 7881, 50000, 50100)
+	if !strings.Contains(out, "address: stoat-redis-master.stoat.svc.cluster.local:6379") {
+		t.Fatalf("expected external redis host:\n%s", out)
+	}
+	if !strings.Contains(out, "password: s3cret") {
+		t.Fatalf("expected redis password:\n%s", out)
 	}
 }
 

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	stoatv1alpha1 "github.com/DataKnifeAI/stoat-operator/api/v1alpha1"
@@ -240,6 +241,10 @@ func (r *StoatReconciler) reconcileLiveKitConfig(ctx context.Context, instance *
 	if !liveKitEnabled(instance.Spec) {
 		return nil
 	}
+	redisURL, err := r.resolveDependencyURI(ctx, instance.Namespace, instance.Spec.Dependencies.Redis, "redis://"+svcRedis+"/")
+	if err != nil {
+		return err
+	}
 	rtc, udpStart, udpEnd := liveKitPorts(instance.Spec)
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -247,20 +252,20 @@ func (r *StoatReconciler) reconcileLiveKitConfig(ctx context.Context, instance *
 			Namespace: instance.Namespace,
 		},
 	}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, cm, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, cm, func() error {
 		if err := controllerutil.SetControllerReference(instance, cm, r.Scheme); err != nil {
 			return err
 		}
 		cm.Labels = stoatLabels(instance.Name)
 		cm.Data = map[string]string{
-			"livekit.yml": renderLiveKitYAML(instance.Spec, secrets, rtc, udpStart, udpEnd),
+			"livekit.yml": renderLiveKitYAML(instance.Spec, secrets, redisURL, rtc, udpStart, udpEnd),
 		}
 		return nil
 	})
 	return err
 }
 
-func renderLiveKitYAML(spec stoatv1alpha1.StoatSpec, secrets *stoatSecrets, rtc, udpStart, udpEnd int32) string {
+func renderLiveKitYAML(spec stoatv1alpha1.StoatSpec, secrets *stoatSecrets, redisURL string, rtc, udpStart, udpEnd int32) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "rtc:\n")
 	fmt.Fprintf(&b, "  use_external_ip: %t\n", liveKitUseExternalIP(spec))
@@ -271,7 +276,7 @@ func renderLiveKitYAML(spec stoatv1alpha1.StoatSpec, secrets *stoatSecrets, rtc,
 	fmt.Fprintf(&b, "  port_range_end: %d\n", udpEnd)
 	fmt.Fprintf(&b, "  tcp_port: %d\n\n", rtc)
 	fmt.Fprintf(&b, "redis:\n")
-	fmt.Fprintf(&b, "  address: %s:%d\n\n", svcRedis, portRedis)
+	writeLiveKitRedis(&b, redisURL)
 	fmt.Fprintf(&b, "turn:\n")
 	fmt.Fprintf(&b, "  enabled: false\n\n")
 	fmt.Fprintf(&b, "keys:\n")
@@ -281,6 +286,50 @@ func renderLiveKitYAML(spec stoatv1alpha1.StoatSpec, secrets *stoatSecrets, rtc,
 	fmt.Fprintf(&b, "  urls:\n")
 	fmt.Fprintf(&b, "    - \"http://%s:%d/worldwide\"\n", svcVoiceIngress, portVoiceIngress)
 	return b.String()
+}
+
+// writeLiveKitRedis maps a redis:// URI into LiveKit's redis config block.
+// LiveKit hostNetwork pods cannot rely on the empty embedded `redis` Service
+// when Dependencies.Redis.secretRef points at an external HA Redis.
+func writeLiveKitRedis(b *strings.Builder, redisURL string) {
+	host, port, user, pass := parseRedisURL(redisURL)
+	if host == "" {
+		host = svcRedis
+	}
+	if port == "" {
+		port = fmt.Sprintf("%d", portRedis)
+	}
+	fmt.Fprintf(b, "  address: %s:%s\n", host, port)
+	if user != "" {
+		fmt.Fprintf(b, "  username: %s\n", user)
+	}
+	if pass != "" {
+		fmt.Fprintf(b, "  password: %s\n", pass)
+	}
+	fmt.Fprintf(b, "\n")
+}
+
+// parseRedisURL extracts host/port/user/password from redis:// or rediss:// URIs.
+func parseRedisURL(raw string) (host, port, user, password string) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", "", "", ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		// bare host:port fallback
+		if h, p, ok := strings.Cut(raw, ":"); ok && !strings.Contains(h, "/") {
+			return h, p, "", ""
+		}
+		return raw, "", "", ""
+	}
+	host = u.Hostname()
+	port = u.Port()
+	if u.User != nil {
+		user = u.User.Username()
+		password, _ = u.User.Password()
+	}
+	return host, port, user, password
 }
 
 func (r *StoatReconciler) reconcileCaddyConfig(ctx context.Context, instance *stoatv1alpha1.Stoat) error {
